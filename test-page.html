@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试页面 - 智能摘要助手</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .content {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        p {
+            margin-bottom: 16px;
+        }
+        .highlight {
+            background: yellow;
+            padding: 2px 4px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>智能摘要助手测试页面</h1>
+        <p>这是一个用于测试智能摘要功能的示例页面。</p>
+    </header>
+
+    <main class="content">
+        <h2>关于人工智能的发展</h2>
+        
+        <p>人工智能（Artificial Intelligence，简称AI）是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。该领域的研究包括机器人、语言识别、图像识别、自然语言处理和专家系统等。</p>
+        
+        <p>自20世纪50年代诞生以来，人工智能经历了多次起伏。在早期，研究者们对AI的前景过于乐观，认为在几十年内就能创造出具有人类智能的机器。然而，现实比预期更加复杂，AI的发展经历了多个"AI冬天"——即资金削减和兴趣下降的时期。</p>
+        
+        <h2>现代AI的突破</h2>
+        
+        <p>近年来，得益于大数据、云计算和深度学习算法的发展，人工智能取得了突破性进展。特别是在以下几个领域：</p>
+        
+        <p><strong>自然语言处理：</strong>像GPT系列、BERT等大型语言模型的出现，使机器能够更好地理解和生成人类语言。这些模型在翻译、摘要、问答等任务上表现出色。</p>
+        
+        <p><strong>计算机视觉：</strong>深度卷积神经网络在图像识别、物体检测、人脸识别等任务上达到了人类水平，甚至在某些特定任务上超越了人类。</p>
+        
+        <p><strong>强化学习：</strong>通过与环境的交互学习，AI系统在游戏（如围棋、象棋）、自动驾驶、机器人控制等领域展现了惊人的能力。</p>
+        
+        <h2>AI的应用前景</h2>
+        
+        <p>人工智能正在各个行业中找到应用，从医疗诊断到金融风控，从智能客服到自动驾驶，AI技术正在改变我们的生活和工作方式。</p>
+        
+        <p class="highlight">特别是在内容创作、智能摘要、问答系统等领域，AI展现出了巨大的潜力，能够帮助人们更高效地处理和理解信息。</p>
+        
+        <h3>主要应用领域包括：</h3>
+        <ul>
+            <li><strong>医疗健康：</strong>AI辅助诊断、药物发现、个性化治疗方案</li>
+            <li><strong>金融服务：</strong>风险评估、欺诈检测、智能投顾</li>
+            <li><strong>教育培训：</strong>个性化学习、智能题库、自动评分</li>
+            <li><strong>智能制造：</strong>质量检测、预测性维护、优化生产</li>
+        </ul>
+        
+        <blockquote>
+            <p>根据研究机构预测，到2030年，人工智能将为全球经济贡献约15.7万亿美元的价值增长。</p>
+        </blockquote>
+        
+        <p>然而，AI的发展也带来了新的挑战，包括就业影响、隐私保护、算法偏见、安全风险等问题，需要我们在推进技术发展的同时，认真考虑和解决这些问题。</p>
+        
+        <h2>结论</h2>
+        
+        <p>人工智能的发展是一个持续的过程，虽然我们距离真正的通用人工智能还有很长的路要走，但当前的AI技术已经在许多领域展现出了实用价值。未来，随着技术的不断进步，我们有理由相信AI将在更多领域发挥重要作用，为人类社会带来更多福祉。</p>
+    </main>
+
+    <footer>
+        <p><em>测试说明：您可以选中上面的任意文本，然后使用智能摘要助手的"摘要选中内容"功能，或者直接使用"摘要页面"功能来测试整页摘要。</em></p>
+    </footer>
+
+    <script>
+        // 添加一些交互功能，方便测试
+        document.addEventListener('mouseup', function() {
+            const selection = window.getSelection();
+            if (selection && selection.toString().trim()) {
+                console.log('选中了文本:', selection.toString().substring(0, 100) + '...');
+            }
+        });
+    </script>
+</body>
+</html>

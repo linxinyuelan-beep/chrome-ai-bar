@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "智能摘要助手",
+  "description": "一键总结网页内容，支持智能问答和多轮对话",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "contextMenus",
+    "storage",
+    "scripting"
+  ],
+  
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  
+  "action": {
+    "default_title": "智能摘要助手",
+    "default_icon": {
+      "16": "assets/icon16.svg",
+      "32": "assets/icon32.svg",
+      "48": "assets/icon48.svg",
+      "128": "assets/icon128.svg"
+    }
+  },
+  
+  "icons": {
+    "16": "assets/icon16.svg",
+    "32": "assets/icon32.svg",
+    "48": "assets/icon48.svg",
+    "128": "assets/icon128.svg"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["content-script.js", "sidepanel.html", "sidepanel.js", "vendors.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
