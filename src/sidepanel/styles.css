@@ -149,8 +149,10 @@ body {
 /* 头部组件 */
 .header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   padding: var(--space-4);
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
@@ -160,7 +162,7 @@ body {
 .logo {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex: 1;
 }
 
 .logo > div:first-child {
@@ -175,6 +177,7 @@ body {
 .header-actions {
   display: flex;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .action-section {
@@ -857,6 +860,15 @@ body {
 @media (max-width: 320px) {
   .header {
     padding: var(--space-3);
+    gap: var(--space-2);
+  }
+  
+  .logo > div:first-child {
+    font-size: var(--font-base);
+  }
+  
+  .header-actions {
+    gap: var(--space-1);
   }
   
   .content-area {

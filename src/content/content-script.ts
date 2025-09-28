@@ -24,9 +24,26 @@ chrome.runtime.onMessage.addListener((message: ContentMessage, sender, sendRespo
 // 获取页面内容
 async function handleGetPageContent() {
   try {
-    return await ContentExtractor.extractPageContent();
+    console.log('🔍 开始提取页面内容...');
+    console.log('📍 当前页面URL:', window.location.href);
+    console.log('📄 页面标题:', document.title);
+    
+    const result = await ContentExtractor.extractPageContent();
+    
+    console.log('✅ 页面内容提取完成:');
+    console.log('📊 提取结果统计:', {
+      标题: result.title,
+      URL: result.url,
+      内容长度: result.content.length,
+      字符数: result.wordCount,
+      内容类型: result.type,
+      语言: result.language
+    });
+    console.log('📝 提取的内容预览:', result.content.substring(0, 200) + '...');
+    
+    return result;
   } catch (error) {
-    console.error('Failed to extract page content:', error);
+    console.error('❌ 页面内容提取失败:', error);
     throw new Error('无法提取页面内容');
   }
 }
@@ -34,10 +51,32 @@ async function handleGetPageContent() {
 // 获取选中内容
 async function handleGetSelection() {
   try {
+    console.log('🖱️ 开始提取选中内容...');
+    
+    const selection = window.getSelection();
+    console.log('🔍 选择对象状态:', {
+      是否有选择: !!selection,
+      选择范围数量: selection?.rangeCount || 0,
+      原始选中文本长度: selection?.toString().length || 0
+    });
+    
     const extracted = ContentExtractor.extractSelectedContent();
-    return extracted ? extracted.content : '';
+    
+    if (extracted) {
+      console.log('✅ 选中内容提取完成:');
+      console.log('📊 选中内容统计:', {
+        内容长度: extracted.content.length,
+        字符数: extracted.wordCount,
+        语言: extracted.language
+      });
+      console.log('📝 选中内容预览:', extracted.content.substring(0, 200) + '...');
+      return extracted.content;
+    } else {
+      console.log('⚠️ 没有检测到选中内容');
+      return '';
+    }
   } catch (error) {
-    console.error('Failed to extract selection:', error);
+    console.error('❌ 选中内容提取失败:', error);
     throw new Error('无法提取选中内容');
   }
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewType, AppState, SummaryResult, ChatSession, ChatMessage, AppSettings } from '../types';
+import { ViewType, SummaryResult, ChatSession, ChatMessage, AppSettings } from '../types';
 import Header from '../components/Header';
 import WelcomeScreen from '../components/WelcomeScreen';
 import LoadingScreen from '../components/LoadingScreen';
@@ -10,7 +10,7 @@ import SettingsPanel from '../components/SettingsPanel';
 import HistoryPanel from '../components/HistoryPanel';
 import { StorageManager } from '../utils/storage-manager';
 import { AIService } from '../utils/ai-service';
-import { ContentExtractor } from '../utils/content-extractor';
+
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('welcome');
@@ -137,57 +137,31 @@ const App: React.FC = () => {
         throw new Error('无法获取当前页面信息');
       }
 
-      // 在页面中执行内容提取
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          // ContentExtractor 的代码需要注入到页面中
-          const extractPageContent = () => {
-            const title = document.title || '未知页面';
-            const url = window.location.href;
-            
-            // 尝试提取主要内容
-            const selectors = [
-              'main', 'article', '[role="main"]',
-              '.content', '#content', '.main-content', 
-              '.article-content', '.post-content', '.entry-content',
-              '.markdown-body', '.post-message', '.answer', '.wiki-content'
-            ];
-
-            let content = '';
-            for (const selector of selectors) {
-              const element = document.querySelector(selector);
-              if (element) {
-                const htmlElement = element as HTMLElement;
-                content = element.textContent || htmlElement.innerText || '';
-                if (content.length > 200) break;
-              }
-            }
-
-            // 如果没有找到主要内容，使用body
-            if (!content || content.length < 100) {
-              content = document.body.textContent || (document.body as any).innerText || '';
-            }
-
-            // 清理内容
-            content = content.replace(/\s+/g, ' ').trim().substring(0, 50000);
-
-            // 统计字数
-            const chineseChars = content.match(/[\u4e00-\u9fa5]/g);
-            const englishWords = content.match(/[a-zA-Z]+/g);
-            const wordCount = (chineseChars ? chineseChars.length : 0) + (englishWords ? englishWords.length : 0);
-
-            return { title, content, url, wordCount };
-          };
-
-          return extractPageContent();
-        }
+      console.log('🚀 [Side Panel] 开始执行页面内容提取...');
+      
+      // 通过content script使用ContentExtractor提取内容
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' });
+      
+      if (!response?.success) {
+        throw new Error(response?.error || '无法提取页面内容');
+      }
+      
+      console.log('📦 [Side Panel] 内容提取完成，处理结果...');
+      const extractedContent = response.data;
+      
+      console.log('📋 [Side Panel] 提取结果:', {
+        是否有结果: !!extractedContent,
+        内容长度: extractedContent?.content?.length || 0,
+        标题: extractedContent?.title,
+        字数: extractedContent?.wordCount
       });
-
-      const extractedContent = results[0]?.result;
+      
       if (!extractedContent?.content) {
+        console.error('❌ [Side Panel] 页面内容提取失败：无有效内容');
         throw new Error('无法提取页面内容');
       }
+      
+      console.log('✅ [Side Panel] 页面内容提取成功，准备发送给AI处理...');
 
       // 检查AI配置
       if (!settings.ai.apiKey) {
@@ -231,6 +205,7 @@ const App: React.FC = () => {
 
   // 处理选中内容摘要
   const handleSummarizeSelection = async () => {
+    console.log('🖱️ [Side Panel] 开始处理选中内容摘要...');
     setIsLoading(true);
     setCurrentView('loading');
     setError(null);
@@ -242,40 +217,87 @@ const App: React.FC = () => {
         throw new Error('无法获取当前页面信息');
       }
 
+      console.log('🚀 [Side Panel] 开始执行选中内容提取...');
+      
       // 在页面中执行选中内容提取
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => {
+          console.log('🖱️ [Injected Script] 开始选中内容提取...');
+          
           const selection = window.getSelection();
+          console.log('🔍 [Injected Script] 选择对象状态:', {
+            存在: !!selection,
+            rangeCount: selection?.rangeCount || 0
+          });
+          
           if (!selection || selection.rangeCount === 0) {
+            console.log('❌ [Injected Script] 没有有效的选择对象');
             return null;
           }
 
           const selectedText = selection.toString().trim();
+          console.log('📝 [Injected Script] 原始选中文本:', {
+            长度: selectedText.length,
+            预览: selectedText.substring(0, 100) + '...'
+          });
+          
           if (!selectedText) {
+            console.log('❌ [Injected Script] 选中文本为空');
             return null;
           }
 
           // 清理内容
+          console.log('🧹 [Injected Script] 开始清理选中内容...');
           const cleanedContent = selectedText.replace(/\s+/g, ' ').trim().substring(0, 50000);
+          console.log('✨ [Injected Script] 内容清理完成:', {
+            清理前长度: selectedText.length,
+            清理后长度: cleanedContent.length
+          });
           
           // 统计字数
           const chineseChars = cleanedContent.match(/[\u4e00-\u9fa5]/g);
           const englishWords = cleanedContent.match(/[a-zA-Z]+/g);
           const wordCount = (chineseChars ? chineseChars.length : 0) + (englishWords ? englishWords.length : 0);
+          
+          console.log('📊 [Injected Script] 选中内容字数统计:', {
+            中文字符: chineseChars ? chineseChars.length : 0,
+            英文单词: englishWords ? englishWords.length : 0,
+            总字数: wordCount
+          });
 
-          return {
+          const result = {
             content: cleanedContent,
             url: window.location.href,
             wordCount
           };
+          
+          console.log('🎉 [Injected Script] 选中内容提取完成:', {
+            URL: result.url,
+            内容长度: result.content.length,
+            字数: result.wordCount,
+            内容预览: result.content.substring(0, 100) + '...'
+          });
+
+          return result;
         }
       });
 
+      console.log('📦 [Side Panel] 选中内容提取脚本执行完成，处理结果...');
       const extractedContent = results[0]?.result;
+      
+      console.log('📋 [Side Panel] 选中内容提取结果:', {
+        是否有结果: !!extractedContent,
+        内容长度: extractedContent?.content?.length || 0,
+        字数: extractedContent?.wordCount
+      });
+      
       if (!extractedContent?.content) {
+        console.error('❌ [Side Panel] 选中内容提取失败：无有效内容');
         throw new Error('请先选择要摘要的内容');
       }
+      
+      console.log('✅ [Side Panel] 选中内容提取成功，准备发送给AI处理...');
 
       // 检查AI配置
       if (!settings.ai.apiKey) {
@@ -398,48 +420,14 @@ const App: React.FC = () => {
         throw new Error('无法获取当前页面信息');
       }
 
-      // 在页面中执行内容提取
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const extractPageContent = () => {
-            const title = document.title || '未知页面';
-            const url = window.location.href;
-            
-            const selectors = [
-              'main', 'article', '[role="main"]',
-              '.content', '#content', '.main-content', 
-              '.article-content', '.post-content', '.entry-content',
-              '.markdown-body', '.post-message', '.answer', '.wiki-content'
-            ];
-
-            let content = '';
-            for (const selector of selectors) {
-              const element = document.querySelector(selector);
-              if (element) {
-                const htmlElement = element as HTMLElement;
-                content = element.textContent || htmlElement.innerText || '';
-                if (content.length > 200) break;
-              }
-            }
-
-            if (!content || content.length < 100) {
-              content = document.body.textContent || (document.body as any).innerText || '';
-            }
-
-            content = content.replace(/\s+/g, ' ').trim().substring(0, 50000);
-            const chineseChars = content.match(/[\u4e00-\u9fa5]/g);
-            const englishWords = content.match(/[a-zA-Z]+/g);
-            const wordCount = (chineseChars ? chineseChars.length : 0) + (englishWords ? englishWords.length : 0);
-
-            return { title, content, url, wordCount };
-          };
-
-          return extractPageContent();
-        }
-      });
-
-      const extractedContent = results[0]?.result;
+      // 通过content script使用ContentExtractor提取内容
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' });
+      
+      if (!response?.success) {
+        throw new Error(response?.error || '无法提取页面内容');
+      }
+      
+      const extractedContent = response.data;
       if (!extractedContent?.content) {
         throw new Error('无法提取页面内容');
       }
