@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ViewType, SummaryResult, ChatSession, ChatMessage, AppSettings } from '../types';
+import { ViewType, SummaryResult, ChatSession, ChatMessage, AppSettings } from '../types/index';
 import Header from '../components/Header';
 import WelcomeScreen from '../components/WelcomeScreen';
 import LoadingScreen from '../components/LoadingScreen';
@@ -18,10 +18,8 @@ const App: React.FC = () => {
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [settings, setSettings] = useState<AppSettings>({
     ai: {
-      provider: 'openai',
-      apiKey: '',
-      baseUrl: '',
-      model: 'gpt-3.5-turbo'
+      configs: [],
+      defaultConfigId: undefined
     },
     summary: {
       length: 'medium',
@@ -46,7 +44,8 @@ const App: React.FC = () => {
         const storageManager = new StorageManager();
         const savedSettings = await storageManager.getSettings();
         if (savedSettings) {
-          console.log('Settings loaded:', savedSettings.ai.provider, 'API key length:', savedSettings.ai.apiKey ? savedSettings.ai.apiKey.length : 0);
+          const defaultConfig = savedSettings.ai.configs.find(c => c.id === savedSettings.ai.defaultConfigId);
+          console.log('Settings loaded:', defaultConfig?.provider || 'none', 'API key length:', defaultConfig?.apiKey?.length || 0);
           setSettings(savedSettings);
         }
         
@@ -164,13 +163,11 @@ const App: React.FC = () => {
       
       console.log('✅ [Side Panel] 页面内容提取成功，准备发送给AI处理...');
 
-      // 检查AI配置
-      if (!settings.ai.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
+      // 检查AI配置并创建服务
+      const aiService = AIService.fromMultiConfig(settings.ai);
+      if (!aiService) {
+        throw new Error('请先在设置中添加并选择AI配置');
       }
-
-      // 创建AI服务实例并生成摘要（流式）
-      const aiService = new AIService(settings.ai);
       
       // 重置流式摘要内容
       setStreamingSummary('');
@@ -310,13 +307,11 @@ const App: React.FC = () => {
       
       console.log('✅ [Side Panel] 选中内容提取成功，准备发送给AI处理...');
 
-      // 检查AI配置
-      if (!settings.ai.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
+      // 检查AI配置并创建服务
+      const aiService = AIService.fromMultiConfig(settings.ai);
+      if (!aiService) {
+        throw new Error('请先在设置中添加并选择AI配置');
       }
-
-      // 创建AI服务实例并生成摘要（流式）
-      const aiService = new AIService(settings.ai);
       
       // 重置流式摘要内容
       setStreamingSummary('');
@@ -375,7 +370,8 @@ const App: React.FC = () => {
         throw new Error('无法获取设置信息');
       }
       
-      console.log('Triggered page summary with settings:', currentSettings.ai.provider, 'API key length:', currentSettings.ai.apiKey ? currentSettings.ai.apiKey.length : 0);
+      const defaultConfig = currentSettings.ai.configs.find(c => c.id === currentSettings.ai.defaultConfigId);
+      console.log('Triggered page summary with settings:', defaultConfig?.provider || 'none', 'API key length:', defaultConfig?.apiKey?.length || 0);
 
       // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -395,13 +391,11 @@ const App: React.FC = () => {
         throw new Error('无法提取页面内容');
       }
 
-      // 检查AI配置
-      if (!currentSettings.ai.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
+      // 检查AI配置并创建服务
+      const aiService = AIService.fromMultiConfig(currentSettings.ai);
+      if (!aiService) {
+        throw new Error('请先在设置中添加并选择AI配置');
       }
-
-      // 创建AI服务实例并生成摘要（流式）
-      const aiService = new AIService(currentSettings.ai);
       
       // 重置流式摘要内容
       setStreamingSummary('');
@@ -456,7 +450,8 @@ const App: React.FC = () => {
         throw new Error('无法获取设置信息');
       }
       
-      console.log('Triggered selection summary with settings:', currentSettings.ai.provider, 'API key length:', currentSettings.ai.apiKey ? currentSettings.ai.apiKey.length : 0);
+      const defaultConfig = currentSettings.ai.configs.find(c => c.id === currentSettings.ai.defaultConfigId);
+      console.log('Triggered selection summary with settings:', defaultConfig?.provider || 'none', 'API key length:', defaultConfig?.apiKey?.length || 0);
 
       // 获取当前页面URL
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -470,13 +465,11 @@ const App: React.FC = () => {
       const englishWords = cleanedContent.match(/[a-zA-Z]+/g);
       const wordCount = (chineseChars ? chineseChars.length : 0) + (englishWords ? englishWords.length : 0);
 
-      // 检查AI配置
-      if (!currentSettings.ai.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
+      // 检查AI配置并创建服务
+      const aiService = AIService.fromMultiConfig(currentSettings.ai);
+      if (!aiService) {
+        throw new Error('请先在设置中添加并选择AI配置');
       }
-
-      // 创建AI服务实例并生成摘要（流式）
-      const aiService = new AIService(currentSettings.ai);
       
       // 重置流式摘要内容
       setStreamingSummary('');
@@ -610,6 +603,7 @@ const App: React.FC = () => {
             onUpdateSession={setCurrentChatSession}
             aiConfig={settings.ai}
             summaryContext={currentSummary?.content}
+            onBackToSummary={currentSummary ? () => setCurrentView('summary') : undefined}
           />
         )}
         

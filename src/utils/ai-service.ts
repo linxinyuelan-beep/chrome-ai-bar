@@ -33,6 +33,27 @@ export class AIService {
     this.config = config;
   }
 
+  // 从MultiAIConfig创建AIService实例的静态方法
+  static fromMultiConfig(multiConfig: import('../types/index').MultiAIConfig): AIService | null {
+    if (!multiConfig.defaultConfigId) {
+      return null;
+    }
+
+    const defaultConfig = multiConfig.configs.find(c => c.id === multiConfig.defaultConfigId);
+    if (!defaultConfig) {
+      return null;
+    }
+
+    const aiConfig: AIConfig = {
+      provider: defaultConfig.provider,
+      apiKey: defaultConfig.apiKey,
+      baseUrl: defaultConfig.baseUrl,
+      model: defaultConfig.model
+    };
+
+    return new AIService(aiConfig);
+  }
+
   // 生成摘要（流式输出）
   async generateSummaryStream(
     content: string,

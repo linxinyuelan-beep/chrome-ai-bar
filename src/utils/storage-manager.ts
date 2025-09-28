@@ -1,4 +1,4 @@
-import { AppSettings, SummaryResult, ChatSession } from '../types';
+import { AppSettings, SummaryResult, ChatSession, AIProviderConfig, MultiAIConfig } from '../types/index';
 
 interface StorageKeys {
   settings: 'settings';
@@ -9,10 +9,8 @@ interface StorageKeys {
 export class StorageManager {
   private defaultSettings: AppSettings = {
     ai: {
-      provider: 'openai',
-      apiKey: '',
-      baseUrl: '',
-      model: 'gpt-3.5-turbo'
+      configs: [],
+      defaultConfigId: undefined
     },
     summary: {
       length: 'medium',
@@ -214,6 +212,216 @@ export class StorageManager {
     } catch (error) {
       console.error('Failed to import data:', error);
       throw new Error('无法导入数据，请检查数据格式');
+    }
+  }
+
+  // ===== AI配置管理方法 =====
+
+  // 生成唯一配置ID
+  private generateConfigId(): string {
+    return `config_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  }
+
+  // 添加AI配置
+  async addAIConfig(config: Omit<AIProviderConfig, 'id' | 'createdAt' | 'updatedAt'>): Promise<AIProviderConfig> {
+    try {
+      const settings = await this.getSettings() || this.defaultSettings;
+      const now = Date.now();
+      
+      const newConfig: AIProviderConfig = {
+        ...config,
+        id: this.generateConfigId(),
+        createdAt: now,
+        updatedAt: now
+      };
+
+      settings.ai.configs.push(newConfig);
+      
+      // 如果这是第一个配置，设为默认
+      if (settings.ai.configs.length === 1 || config.isDefault) {
+        settings.ai.defaultConfigId = newConfig.id;
+        // 确保只有一个默认配置
+        settings.ai.configs.forEach(c => {
+          c.isDefault = c.id === newConfig.id;
+        });
+      }
+
+      await this.saveSettings(settings);
+      return newConfig;
+    } catch (error) {
+      console.error('Failed to add AI config:', error);
+      throw new Error('无法添加AI配置');
+    }
+  }
+
+  // 更新AI配置
+  async updateAIConfig(configId: string, updates: Partial<Omit<AIProviderConfig, 'id' | 'createdAt'>>): Promise<AIProviderConfig> {
+    try {
+      const settings = await this.getSettings() || this.defaultSettings;
+      const configIndex = settings.ai.configs.findIndex(c => c.id === configId);
+      
+      if (configIndex === -1) {
+        throw new Error('配置不存在');
+      }
+
+      const updatedConfig = {
+        ...settings.ai.configs[configIndex],
+        ...updates,
+        updatedAt: Date.now()
+      };
+
+      settings.ai.configs[configIndex] = updatedConfig;
+
+      // 如果设为默认，更新defaultConfigId并取消其他默认
+      if (updates.isDefault) {
+        settings.ai.defaultConfigId = configId;
+        settings.ai.configs.forEach(c => {
+          c.isDefault = c.id === configId;
+        });
+      }
+
+      await this.saveSettings(settings);
+      return updatedConfig;
+    } catch (error) {
+      console.error('Failed to update AI config:', error);
+      throw new Error('无法更新AI配置');
+    }
+  }
+
+  // 删除AI配置
+  async deleteAIConfig(configId: string): Promise<void> {
+    try {
+      const settings = await this.getSettings() || this.defaultSettings;
+      const configIndex = settings.ai.configs.findIndex(c => c.id === configId);
+      
+      if (configIndex === -1) {
+        throw new Error('配置不存在');
+      }
+
+      const isDefault = settings.ai.defaultConfigId === configId;
+      settings.ai.configs.splice(configIndex, 1);
+
+      // 如果删除的是默认配置，设置新的默认
+      if (isDefault && settings.ai.configs.length > 0) {
+        settings.ai.defaultConfigId = settings.ai.configs[0].id;
+        settings.ai.configs[0].isDefault = true;
+      } else if (settings.ai.configs.length === 0) {
+        settings.ai.defaultConfigId = undefined;
+      }
+
+      await this.saveSettings(settings);
+    } catch (error) {
+      console.error('Failed to delete AI config:', error);
+      throw new Error('无法删除AI配置');
+    }
+  }
+
+  // 设置默认AI配置
+  async setDefaultAIConfig(configId: string): Promise<void> {
+    try {
+      const settings = await this.getSettings() || this.defaultSettings;
+      const config = settings.ai.configs.find(c => c.id === configId);
+      
+      if (!config) {
+        throw new Error('配置不存在');
+      }
+
+      settings.ai.defaultConfigId = configId;
+      settings.ai.configs.forEach(c => {
+        c.isDefault = c.id === configId;
+      });
+
+      await this.saveSettings(settings);
+    } catch (error) {
+      console.error('Failed to set default AI config:', error);
+      throw new Error('无法设置默认配置');
+    }
+  }
+
+  // 获取默认AI配置
+  async getDefaultAIConfig(): Promise<AIProviderConfig | null> {
+    try {
+      const settings = await this.getSettings();
+      if (!settings?.ai.defaultConfigId) {
+        return null;
+      }
+
+      return settings.ai.configs.find(c => c.id === settings.ai.defaultConfigId) || null;
+    } catch (error) {
+      console.error('Failed to get default AI config:', error);
+      return null;
+    }
+  }
+
+  // 获取所有AI配置
+  async getAllAIConfigs(): Promise<AIProviderConfig[]> {
+    try {
+      const settings = await this.getSettings();
+      return settings?.ai.configs || [];
+    } catch (error) {
+      console.error('Failed to get AI configs:', error);
+      return [];
+    }
+  }
+
+  // 复制AI配置
+  async duplicateAIConfig(configId: string, newName?: string): Promise<AIProviderConfig> {
+    try {
+      const settings = await this.getSettings() || this.defaultSettings;
+      const originalConfig = settings.ai.configs.find(c => c.id === configId);
+      
+      if (!originalConfig) {
+        throw new Error('配置不存在');
+      }
+
+      const duplicatedConfig = {
+        ...originalConfig,
+        name: newName || `${originalConfig.name} (副本)`,
+        isDefault: false // 副本不设为默认
+      };
+
+      return await this.addAIConfig(duplicatedConfig);
+    } catch (error) {
+      console.error('Failed to duplicate AI config:', error);
+      throw new Error('无法复制AI配置');
+    }
+  }
+
+  // 迁移旧配置到新格式
+  async migrateOldSettings(): Promise<void> {
+    try {
+      const settings = await this.getSettings();
+      if (!settings) return;
+
+      // 检查是否是旧格式（ai字段包含provider等属性）
+      const oldAI = settings.ai as any;
+      if (oldAI.provider && oldAI.apiKey !== undefined) {
+        // 创建新的多配置格式
+        const migratedConfig: AIProviderConfig = {
+          id: this.generateConfigId(),
+          name: `${oldAI.provider} (迁移)`,
+          provider: oldAI.provider,
+          apiKey: oldAI.apiKey || '',
+          baseUrl: oldAI.baseUrl || '',
+          model: oldAI.model || '',
+          isDefault: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        const newSettings: AppSettings = {
+          ...settings,
+          ai: {
+            configs: [migratedConfig],
+            defaultConfigId: migratedConfig.id
+          }
+        };
+
+        await this.saveSettings(newSettings);
+        console.log('Successfully migrated old AI settings to new format');
+      }
+    } catch (error) {
+      console.error('Failed to migrate old settings:', error);
     }
   }
 }

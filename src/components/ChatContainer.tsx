@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
-import { Send, Trash2 } from 'lucide-react';
-import { ChatSession, ChatMessage, AIConfig } from '../types';
+import { Send, Trash2, ArrowLeft } from 'lucide-react';
+import { ChatSession, ChatMessage, MultiAIConfig } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import MarkdownRenderer from './MarkdownRenderer';
 
 interface ChatContainerProps {
   session: ChatSession;
   onUpdateSession: (session: ChatSession) => void;
-  aiConfig: AIConfig;
+  aiConfig: MultiAIConfig;
   summaryContext?: string; // 摘要内容作为对话上下文
+  onBackToSummary?: () => void; // 返回摘要页面的回调
 }
 
 const ChatContainer: React.FC<ChatContainerProps> = ({ 
   session, 
   onUpdateSession,
   aiConfig,
-  summaryContext 
+  summaryContext,
+  onBackToSummary 
 }) => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -41,8 +43,11 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     setIsLoading(true);
 
     try {
-      // 创建AI服务实例
-      const aiService = new AIService(aiConfig);
+            // 使用AI服务生成回复（流式）
+      const aiService = AIService.fromMultiConfig(aiConfig);
+      if (!aiService) {
+        throw new Error('AI配置不可用，请检查设置');
+      }
       
       // 重置流式内容
       setStreamingContent('');
@@ -114,7 +119,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   return (
     <div className="chat-container">
       <div className="chat-header">
-        <h4>智能问答</h4>
+        <div className="chat-header-left">
+          {onBackToSummary && (
+            <button className="icon-btn" onClick={onBackToSummary} title="返回摘要">
+              <ArrowLeft size={16} />
+            </button>
+          )}
+          <h4>智能问答</h4>
+        </div>
         <button className="icon-btn" onClick={handleClearChat} title="清空对话">
           <Trash2 size={16} />
         </button>

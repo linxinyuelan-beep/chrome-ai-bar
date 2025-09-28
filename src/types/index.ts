@@ -13,6 +13,25 @@ export interface AIConfig {
   model?: string;
 }
 
+// 单个AI提供商的完整配置
+export interface AIProviderConfig {
+  id: string; // 唯一标识符
+  name: string; // 用户自定义名称
+  provider: string; // 提供商类型 (openai, claude, gemini 等)
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  isDefault?: boolean; // 是否为默认配置
+  createdAt: number;
+  updatedAt: number;
+}
+
+// 多配置管理
+export interface MultiAIConfig {
+  configs: AIProviderConfig[];
+  defaultConfigId?: string; // 当前选中的默认配置ID
+}
+
 // API验证相关类型
 export interface APIValidationResult {
   isValid: boolean;
@@ -60,9 +79,22 @@ export interface ChatSession {
   timestamp: number;
 }
 
+// 快捷回复相关类型
+export interface QuickReply {
+  id: string;
+  text: string;
+  isDefault: boolean;
+  createdAt: number;
+}
+
+export interface QuickReplySettings {
+  enabled: boolean;
+  replies: QuickReply[];
+}
+
 // 设置相关类型
 export interface AppSettings {
-  ai: AIConfig;
+  ai: MultiAIConfig; // 改为多配置支持
   summary: SummarySettings;
   ui: {
     theme: 'light' | 'dark' | 'auto';

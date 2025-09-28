@@ -1,7 +1,8 @@
-import React from 'react';
-import { X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
-import { AppSettings, AIProvider, APIValidationStatus } from '../types/index';
+import React, { useState, useEffect } from 'react';
+import { X, CheckCircle, AlertCircle, Loader, Plus, Edit2, Trash2, Copy, Settings } from 'lucide-react';
+import { AppSettings, AIProvider, APIValidationStatus, AIProviderConfig } from '../types/index';
 import { AIService } from '../utils/ai-service';
+import { StorageManager } from '../utils/storage-manager';
 
 interface SettingsPanelProps {
   settings: AppSettings;
@@ -10,10 +11,13 @@ interface SettingsPanelProps {
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose }) => {
-  const [localSettings, setLocalSettings] = React.useState<AppSettings>(settings);
-  const [validationStatus, setValidationStatus] = React.useState<APIValidationStatus>({
+  const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+  const [validationStatus, setValidationStatus] = useState<APIValidationStatus>({
     isValidating: false
   });
+  const [showConfigForm, setShowConfigForm] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<AIProviderConfig | null>(null);
+  const [storageManager] = useState(() => new StorageManager());
 
   const aiProviders: AIProvider[] = [
     { 
@@ -36,6 +40,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
     }
   ];
 
+  // 配置表单状态
+  const [configForm, setConfigForm] = useState({
+    name: '',
+    provider: 'openai',
+    apiKey: '',
+    baseUrl: '',
+    model: ''
+  });
+
+  useEffect(() => {
+    // 迁移旧设置格式
+    storageManager.migrateOldSettings();
+  }, [storageManager]);
+
   const handleSave = () => {
     onSave(localSettings);
   };
@@ -43,10 +61,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
   const handleReset = () => {
     const defaultSettings: AppSettings = {
       ai: {
-        provider: 'openai',
-        apiKey: '',
-        baseUrl: '',
-        model: 'gpt-3.5-turbo'
+        configs: [],
+        defaultConfigId: undefined
       },
       summary: {
         length: 'medium',
@@ -59,15 +75,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
       }
     };
     setLocalSettings(defaultSettings);
-    // 清除验证状态
     setValidationStatus({ isValidating: false });
-  };
-
-  const updateAISettings = (key: keyof AppSettings['ai'], value: string) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      ai: { ...prev.ai, [key]: value }
-    }));
   };
 
   const updateSummarySettings = (key: keyof AppSettings['summary'], value: string) => {
@@ -84,29 +92,163 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
     }));
   };
 
-  // 获取当前选中的AI提供商
-  const getCurrentProvider = () => {
-    return aiProviders.find(p => p.id === localSettings.ai.provider);
+  // 获取当前选中的AI提供商信息
+  const getProviderInfo = (providerId: string) => {
+    return aiProviders.find(p => p.id === providerId);
   };
 
-  // 处理提供商变更，自动设置默认模型
-  const handleProviderChange = (providerId: string) => {
-    const provider = aiProviders.find(p => p.id === providerId);
-    setLocalSettings(prev => ({
-      ...prev,
-      ai: { 
-        ...prev.ai, 
-        provider: providerId,
-        model: provider?.defaultModel || provider?.models[0] || ''
+  // 处理配置表单提交
+  const handleConfigSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const providerInfo = getProviderInfo(configForm.provider);
+      const model = configForm.model || providerInfo?.defaultModel || '';
+      
+      if (editingConfig) {
+        // 更新现有配置
+        const updatedConfig = await storageManager.updateAIConfig(editingConfig.id, {
+          name: configForm.name,
+          provider: configForm.provider,
+          apiKey: configForm.apiKey,
+          baseUrl: configForm.baseUrl,
+          model: model
+        });
+        
+        // 更新本地设置
+        const configIndex = localSettings.ai.configs.findIndex(c => c.id === editingConfig.id);
+        if (configIndex >= 0) {
+          const newConfigs = [...localSettings.ai.configs];
+          newConfigs[configIndex] = updatedConfig;
+          setLocalSettings(prev => ({
+            ...prev,
+            ai: { ...prev.ai, configs: newConfigs }
+          }));
+        }
+      } else {
+        // 添加新配置
+        const newConfig = await storageManager.addAIConfig({
+          name: configForm.name,
+          provider: configForm.provider,
+          apiKey: configForm.apiKey,
+          baseUrl: configForm.baseUrl,
+          model: model,
+          isDefault: localSettings.ai.configs.length === 0 // 第一个配置自动设为默认
+        });
+        
+        // 更新本地设置
+        setLocalSettings(prev => ({
+          ...prev,
+          ai: {
+            configs: [...prev.ai.configs, newConfig],
+            defaultConfigId: prev.ai.configs.length === 0 ? newConfig.id : prev.ai.defaultConfigId
+          }
+        }));
       }
-    }));
-    // 清除之前的验证状态
-    setValidationStatus({ isValidating: false });
+      
+      // 重置表单
+      resetConfigForm();
+    } catch (error) {
+      console.error('Failed to save config:', error);
+      // 这里可以添加错误提示
+    }
   };
 
-  // 验证API连接
-  const handleValidateAPI = async () => {
-    if (!localSettings.ai.apiKey) {
+  // 重置配置表单
+  const resetConfigForm = () => {
+    setConfigForm({
+      name: '',
+      provider: 'openai',
+      apiKey: '',
+      baseUrl: '',
+      model: ''
+    });
+    setShowConfigForm(false);
+    setEditingConfig(null);
+  };
+
+  // 编辑配置
+  const handleEditConfig = (config: AIProviderConfig) => {
+    setConfigForm({
+      name: config.name,
+      provider: config.provider,
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl || '',
+      model: config.model || ''
+    });
+    setEditingConfig(config);
+    setShowConfigForm(true);
+  };
+
+  // 删除配置
+  const handleDeleteConfig = async (configId: string) => {
+    if (confirm('确定要删除这个配置吗？')) {
+      try {
+        await storageManager.deleteAIConfig(configId);
+        
+        // 更新本地设置
+        const newConfigs = localSettings.ai.configs.filter(c => c.id !== configId);
+        let newDefaultId = localSettings.ai.defaultConfigId;
+        if (localSettings.ai.defaultConfigId === configId) {
+          newDefaultId = newConfigs.length > 0 ? newConfigs[0].id : undefined;
+        }
+        
+        setLocalSettings(prev => ({
+          ...prev,
+          ai: {
+            configs: newConfigs,
+            defaultConfigId: newDefaultId
+          }
+        }));
+      } catch (error) {
+        console.error('Failed to delete config:', error);
+      }
+    }
+  };
+
+  // 复制配置
+  const handleDuplicateConfig = async (config: AIProviderConfig) => {
+    try {
+      const newConfig = await storageManager.duplicateAIConfig(config.id);
+      
+      // 更新本地设置
+      setLocalSettings(prev => ({
+        ...prev,
+        ai: {
+          ...prev.ai,
+          configs: [...prev.ai.configs, newConfig]
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to duplicate config:', error);
+    }
+  };
+
+  // 设置默认配置
+  const handleSetDefaultConfig = async (configId: string) => {
+    try {
+      await storageManager.setDefaultAIConfig(configId);
+      
+      // 更新本地设置
+      setLocalSettings(prev => ({
+        ...prev,
+        ai: {
+          ...prev.ai,
+          defaultConfigId: configId,
+          configs: prev.ai.configs.map(c => ({
+            ...c,
+            isDefault: c.id === configId
+          }))
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to set default config:', error);
+    }
+  };
+
+  // 验证指定配置的API
+  const handleValidateConfig = async (config: AIProviderConfig) => {
+    if (!config.apiKey) {
       setValidationStatus({
         isValidating: false,
         result: {
@@ -120,7 +262,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
     setValidationStatus({ isValidating: true });
 
     try {
-      const aiService = new AIService(localSettings.ai);
+      const aiService = new AIService({
+        provider: config.provider,
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        model: config.model
+      });
+      
       const result = await aiService.validateAPI();
       
       setValidationStatus({
@@ -128,21 +276,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
         lastValidated: Date.now(),
         result
       });
-
-      // 如果验证成功且返回了可用的模型列表，更新当前提供商的模型列表
-      if (result.isValid && result.availableModels && result.availableModels.length > 0) {
-        const currentProvider = getCurrentProvider();
-        if (currentProvider) {
-          currentProvider.models = result.availableModels;
-          // 如果当前选中的模型不在可用列表中，设置为第一个可用模型
-          if (result.availableModels.indexOf(localSettings.ai.model || '') === -1) {
-            setLocalSettings(prev => ({
-              ...prev,
-              ai: { ...prev.ai, model: result.availableModels[0] }
-            }));
-          }
-        }
-      }
     } catch (error) {
       setValidationStatus({
         isValidating: false,
@@ -202,79 +335,189 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
       </div>
       
       <div className="settings-content">
-        {/* AI服务配置 */}
+        {/* AI服务配置管理 */}
         <div className="setting-group">
-          <h5>AI服务配置</h5>
-          
-          <div className="setting-item">
-            <label htmlFor="aiProvider">AI服务提供商</label>
-            <select 
-              id="aiProvider"
-              value={localSettings.ai.provider}
-              onChange={(e) => handleProviderChange(e.target.value)}
+          <div className="setting-group-header">
+            <h5>AI服务配置</h5>
+            <button 
+              className="primary-btn small-btn setting-add-btn"
+              onClick={() => setShowConfigForm(true)}
             >
-              {aiProviders.map(provider => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.name}
-                </option>
-              ))}
-            </select>
+              <Plus size={16} />
+              添加配置
+            </button>
           </div>
 
-          <div className="setting-item">
-            <label htmlFor="aiModel">AI模型</label>
-            <select 
-              id="aiModel"
-              value={localSettings.ai.model || ''}
-              onChange={(e) => updateAISettings('model', e.target.value)}
-            >
-              {getCurrentProvider()?.models.map(model => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-            <small className="setting-hint">选择要使用的AI模型</small>
-          </div>
-          
-          <div className="setting-item">
-            <label htmlFor="apiKey">API密钥</label>
-            <input 
-              type="password" 
-              id="apiKey"
-              value={localSettings.ai.apiKey}
-              onChange={(e) => updateAISettings('apiKey', e.target.value)}
-              placeholder="输入您的API密钥"
-            />
-          </div>
-          
-          <div className="setting-item">
-            <label htmlFor="apiBaseUrl">API Base URL</label>
-            <input 
-              type="text" 
-              id="apiBaseUrl"
-              value={localSettings.ai.baseUrl || ''}
-              onChange={(e) => updateAISettings('baseUrl', e.target.value)}
-              placeholder="自定义API端点 (可选)"
-            />
-            <small className="setting-hint">支持OpenRouter、本地API等兼容服务</small>
-          </div>
-
-          <div className="setting-item">
-            <div className="setting-label">API连接验证</div>
-            <div className="api-validation-container">
-              <button 
-                type="button"
-                className="validate-btn"
-                onClick={handleValidateAPI}
-                disabled={validationStatus.isValidating || !localSettings.ai.apiKey}
+          {/* 配置列表 */}
+          <div className="config-list">
+            {localSettings.ai.configs.map(config => (
+              <div 
+                key={config.id} 
+                className={`config-item ${config.id === localSettings.ai.defaultConfigId ? 'default' : ''}`}
               >
-                {validationStatus.isValidating ? '验证中...' : '验证API'}
-              </button>
-              {renderValidationStatus()}
-            </div>
-            <small className="setting-hint">验证API密钥和连接是否正常</small>
+                <div className="config-info">
+                  <div className="config-name">
+                    {config.name}
+                    {config.id === localSettings.ai.defaultConfigId && (
+                      <span className="default-badge">默认</span>
+                    )}
+                  </div>
+                  <div className="config-details">
+                    {getProviderInfo(config.provider)?.name} • {config.model}
+                  </div>
+                </div>
+                
+                <div className="config-actions">
+                  {config.id !== localSettings.ai.defaultConfigId && (
+                    <button 
+                      className="icon-btn small"
+                      onClick={() => handleSetDefaultConfig(config.id)}
+                      title="设为默认"
+                    >
+                      <Settings size={14} />
+                    </button>
+                  )}
+                  <button 
+                    className="icon-btn small"
+                    onClick={() => handleValidateConfig(config)}
+                    title="验证API"
+                  >
+                    <CheckCircle size={14} />
+                  </button>
+                  <button 
+                    className="icon-btn small"
+                    onClick={() => handleDuplicateConfig(config)}
+                    title="复制配置"
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button 
+                    className="icon-btn small"
+                    onClick={() => handleEditConfig(config)}
+                    title="编辑"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button 
+                    className="icon-btn small danger"
+                    onClick={() => handleDeleteConfig(config.id)}
+                    title="删除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            
+            {localSettings.ai.configs.length === 0 && (
+              <div className="empty-state">
+                <p>暂无AI配置，请添加一个配置以开始使用</p>
+              </div>
+            )}
           </div>
+
+          {/* API验证状态 */}
+          {renderValidationStatus()}
+
+          {/* 配置表单 */}
+          {showConfigForm && (
+            <div className="config-form-overlay">
+              <div className="config-form">
+                <div className="form-header">
+                  <h6>{editingConfig ? '编辑配置' : '添加配置'}</h6>
+                  <button className="icon-btn" onClick={resetConfigForm}>
+                    <X size={16} />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleConfigSubmit}>
+                  <div className="form-row">
+                    <label htmlFor="configName">配置名称</label>
+                    <input
+                      type="text"
+                      id="configName"
+                      value={configForm.name}
+                      onChange={(e) => setConfigForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="例如：OpenRouter、DeepSeek"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <label htmlFor="configProvider">服务提供商</label>
+                    <select
+                      id="configProvider"
+                      value={configForm.provider}
+                      onChange={(e) => {
+                        const provider = aiProviders.find(p => p.id === e.target.value);
+                        setConfigForm(prev => ({
+                          ...prev,
+                          provider: e.target.value,
+                          model: provider?.defaultModel || ''
+                        }));
+                      }}
+                    >
+                      {aiProviders.map(provider => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-row">
+                    <label htmlFor="configModel">AI模型</label>
+                    <select
+                      id="configModel"
+                      value={configForm.model}
+                      onChange={(e) => setConfigForm(prev => ({ ...prev, model: e.target.value }))}
+                    >
+                      {getProviderInfo(configForm.provider)?.models.map(model => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-row">
+                    <label htmlFor="configApiKey">API密钥</label>
+                    <input
+                      type="password"
+                      id="configApiKey"
+                      value={configForm.apiKey}
+                      onChange={(e) => setConfigForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                      placeholder="输入您的API密钥"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <label htmlFor="configBaseUrl">API Base URL (可选)</label>
+                    <input
+                      type="text"
+                      id="configBaseUrl"
+                      value={configForm.baseUrl}
+                      onChange={(e) => setConfigForm(prev => ({ ...prev, baseUrl: e.target.value }))}
+                      placeholder="自定义API端点，如 https://openrouter.ai/api/v1"
+                    />
+                    <small className="form-hint">
+                      支持OpenRouter、本地API等兼容服务
+                    </small>
+                  </div>
+
+                  <div className="form-actions">
+                    <button type="submit" className="primary-btn">
+                      {editingConfig ? '更新配置' : '添加配置'}
+                    </button>
+                    <button type="button" className="secondary-btn" onClick={resetConfigForm}>
+                      取消
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 摘要设置 */}
