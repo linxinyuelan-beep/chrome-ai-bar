@@ -30,7 +30,7 @@ export class AIService {
 
   // 生成摘要
   async generateSummary(
-    content: string, 
+    content: string,
     settings: SummarySettings,
     type: 'page' | 'selection' = 'page'
   ): Promise<string> {
@@ -54,10 +54,10 @@ export class AIService {
 
     // 构建提示词
     const prompt = this.buildSummaryPrompt(content, settings, type);
-    
+
     // 调用AI服务
     const response = await this.callAI(prompt);
-    
+
     // 缓存结果
     this.cache.set(cacheKey, {
       data: response,
@@ -81,10 +81,10 @@ export class AIService {
 
     // 构建对话消息
     const chatMessages = this.buildChatMessages(messages, context);
-    
+
     // 调用AI服务
     const response = await this.callAI(chatMessages);
-    
+
     return response.content;
   }
 
@@ -106,13 +106,16 @@ export class AIService {
 
   // 获取OpenAI模型的正确token参数名
   private getOpenAITokensParam(model: string, maxTokens: number): object {
+    if (model.startsWith('gpt-5-nano') || model.startsWith('gpt-5-mini')) {
+      return { max_completion_tokens: maxTokens, temperature: 1 };
+    }
     return { max_completion_tokens: maxTokens }
   }
 
   // OpenAI API调用
   private async callOpenAI(messages: any): Promise<AIResponse> {
     const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1';
-    const model = this.config.model || 'gpt-3.5-turbo';
+    const model = this.config.model || 'gpt-5-mini';
 
     // 构建请求体，使用正确的token参数
     const requestBody = {
@@ -179,7 +182,7 @@ export class AIService {
     const baseUrl = this.config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta';
     const model = this.config.model || 'gemini-pro';
 
-    const content = Array.isArray(messages) 
+    const content = Array.isArray(messages)
       ? messages.map(m => m.content).join('\\n\\n')
       : messages;
 
@@ -212,12 +215,12 @@ export class AIService {
 
   // 构建摘要提示词
   private buildSummaryPrompt(
-    content: string, 
-    settings: SummarySettings, 
+    content: string,
+    settings: SummarySettings,
     type: 'page' | 'selection'
   ): string {
     const { length, style, language } = settings;
-    
+
     let lengthInstruction = '';
     switch (length) {
       case 'short':
@@ -363,7 +366,7 @@ ${context}
 
     try {
       const testMessage = 'Hello, this is a test message to validate API connection.';
-      
+
       switch (this.config.provider) {
         case 'openai':
           return await this.validateOpenAI(testMessage);
@@ -415,6 +418,7 @@ ${context}
       const requestBody = {
         model,
         messages: [{ role: 'user', content: testMessage }],
+        temperature: 0.7,
         ...this.getOpenAITokensParam(model, 10),
       };
 
