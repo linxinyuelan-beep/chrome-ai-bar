@@ -19,7 +19,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
     { 
       id: 'openai', 
       name: 'OpenAI', 
-      models: [ 'gpt-5-nano', 'gpt-5-mini', 'gpt-5-chat-latest', 'gpt-4o-mini', 'gpt-4o'],
+      models: [ 'gpt-5-nano', 'gpt-5-mini', 'gpt-5-chat-latest', 'gpt-4o-mini', 'gpt-4o', 'deepseek-chat'],
       defaultModel: 'gpt-5-chat-latest'
     },
     { 
