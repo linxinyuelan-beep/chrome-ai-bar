@@ -96,6 +96,7 @@ export interface QuickReplySettings {
 export interface AppSettings {
   ai: MultiAIConfig; // 改为多配置支持
   summary: SummarySettings;
+  quickReply: QuickReplySettings;
   ui: {
     theme: 'light' | 'dark' | 'auto';
     fontSize: 'small' | 'medium' | 'large';

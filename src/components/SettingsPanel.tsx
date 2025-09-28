@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Loader, Plus, Edit2, Trash2, Copy, Settings } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Loader, Plus, Edit2, Trash2, Copy, Settings, Zap } from 'lucide-react';
 import { AppSettings, AIProvider, APIValidationStatus, AIProviderConfig } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import { StorageManager } from '../utils/storage-manager';
@@ -68,6 +68,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
         length: 'medium',
         style: 'bullet',
         language: 'auto'
+      },
+      quickReply: {
+        enabled: true,
+        replies: []
       },
       ui: {
         theme: 'auto',
@@ -562,6 +566,89 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
               <option value="auto">自动检测</option>
             </select>
           </div>
+        </div>
+
+        {/* 快捷回复设置 */}
+        <div className="setting-group">
+          <div className="setting-group-header">
+            <h5>
+              <Zap size={16} style={{marginRight: '8px', display: 'inline'}} />
+              快捷回复
+            </h5>
+          </div>
+          
+          <div className="setting-item">
+            <label className="setting-checkbox">
+              <input
+                type="checkbox"
+                checked={localSettings.quickReply.enabled}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  quickReply: { ...prev.quickReply, enabled: e.target.checked }
+                }))}
+              />
+              启用快捷回复
+            </label>
+            <small className="setting-hint">在对话页面显示快捷回复按钮</small>
+          </div>
+
+          {localSettings.quickReply.enabled && (
+            <div className="setting-item">
+              <div className="setting-label">快捷回复列表</div>
+                <div className="quick-reply-management">
+                  {localSettings.quickReply.replies.map((reply, index) => (
+                    <div key={reply.id} className="quick-reply-item">
+                      <span className="quick-reply-text">{reply.text}</span>
+                      <div className="quick-reply-actions">
+                        {!reply.isDefault && (
+                          <button 
+                            className="icon-btn small danger"
+                            onClick={() => {
+                              setLocalSettings(prev => ({
+                                ...prev,
+                                quickReply: {
+                                  ...prev.quickReply,
+                                  replies: prev.quickReply.replies.filter(r => r.id !== reply.id)
+                                }
+                              }));
+                            }}
+                            title="删除"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="add-quick-reply">
+                    <input
+                      type="text"
+                      placeholder="输入新的快捷回复..."
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                          const newReply = {
+                            id: `custom-${Date.now()}`,
+                            text: e.currentTarget.value.trim(),
+                            isDefault: false,
+                            createdAt: Date.now()
+                          };
+                          setLocalSettings(prev => ({
+                            ...prev,
+                            quickReply: {
+                              ...prev.quickReply,
+                              replies: [...prev.quickReply.replies, newReply]
+                            }
+                          }));
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <small className="setting-hint">按回车键添加快捷回复</small>
+                  </div>
+                </div>
+            </div>
+          )}
         </div>
 
         {/* 界面设置 */}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Send, Trash2, ArrowLeft } from 'lucide-react';
-import { ChatSession, ChatMessage, MultiAIConfig } from '../types/index';
+import { Send, Trash2, ArrowLeft, Zap } from 'lucide-react';
+import { ChatSession, ChatMessage, MultiAIConfig, QuickReplySettings } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -10,6 +10,7 @@ interface ChatContainerProps {
   aiConfig: MultiAIConfig;
   summaryContext?: string; // 摘要内容作为对话上下文
   onBackToSummary?: () => void; // 返回摘要页面的回调
+  quickReplySettings: QuickReplySettings; // 快捷回复设置
 }
 
 const ChatContainer: React.FC<ChatContainerProps> = ({ 
@@ -17,11 +18,13 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   onUpdateSession,
   aiConfig,
   summaryContext,
-  onBackToSummary 
+  onBackToSummary,
+  quickReplySettings 
 }) => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [showQuickReplies, setShowQuickReplies] = useState(true);
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -116,6 +119,84 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     }
   };
 
+  const handleQuickReply = async (text: string) => {
+    if (isLoading) return;
+
+    // 直接创建用户消息
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: text,
+      role: 'user',
+      timestamp: Date.now()
+    };
+
+    const updatedSession = {
+      ...session,
+      messages: [...session.messages, userMessage]
+    };
+
+    onUpdateSession(updatedSession);
+    setIsLoading(true);
+    setShowQuickReplies(false);
+
+    try {
+      // 使用AI服务生成回复（流式）
+      const aiService = AIService.fromMultiConfig(aiConfig);
+      if (!aiService) {
+        throw new Error('AI配置不可用，请检查设置');
+      }
+      
+      // 重置流式内容
+      setStreamingContent('');
+      
+      const response = await aiService.generateChatResponseStream(
+        updatedSession.messages,
+        summaryContext,
+        (chunk: string) => {
+          setStreamingContent(prev => prev + chunk);
+        }
+      );
+
+      const aiMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: response,
+        role: 'assistant',
+        timestamp: Date.now()
+      };
+
+      const finalSession = {
+        ...updatedSession,
+        messages: [...updatedSession.messages, aiMessage]
+      };
+
+      onUpdateSession(finalSession);
+      setStreamingContent('');
+    } catch (error) {
+      console.error('Failed to generate AI response:', error);
+      
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: '抱歉，生成回复时出现错误，请重试。',
+        role: 'assistant',
+        timestamp: Date.now()
+      };
+
+      const errorSession = {
+        ...updatedSession,
+        messages: [...updatedSession.messages, errorMessage]
+      };
+
+      onUpdateSession(errorSession);
+    } finally {
+      setIsLoading(false);
+      setStreamingContent('');
+    }
+  };
+
+  const toggleQuickReplies = () => {
+    setShowQuickReplies(!showQuickReplies);
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -172,6 +253,40 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           </div>
         )}
       </div>
+      
+      {quickReplySettings.enabled && quickReplySettings.replies.length > 0 && (
+        <div className="quick-replies-container">
+          <div className="quick-replies-header">
+            <span className="quick-replies-title">
+              <Zap size={14} />
+              快捷回复
+            </span>
+            <button 
+              className="quick-replies-toggle"
+              onClick={toggleQuickReplies}
+              title={showQuickReplies ? '收起' : '展开'}
+            >
+              {showQuickReplies ? '−' : '+'}
+            </button>
+          </div>
+          {showQuickReplies && (
+            <div className="quick-replies-list">
+              {quickReplySettings.replies.map((reply) => (
+                <button
+                  key={reply.id}
+                  className="quick-reply-btn"
+                  onClick={() => handleQuickReply(reply.text)}
+                  disabled={isLoading}
+                  title="点击直接发送"
+                >
+                  <span className="quick-reply-text">{reply.text}</span>
+                  <Send size={12} className="quick-reply-icon" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       
       <div className="chat-input-container">
         <textarea

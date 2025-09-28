@@ -553,6 +553,111 @@ body {
   }
 }
 
+/* 快捷回复样式 */
+.quick-replies-container {
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-tertiary);
+}
+
+.quick-replies-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quick-replies-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+.quick-replies-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-lg);
+  font-weight: bold;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.quick-replies-toggle:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.quick-replies-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.quick-reply-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.quick-reply-btn .quick-reply-text {
+  flex: 1;
+}
+
+.quick-reply-btn .quick-reply-icon {
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.quick-reply-btn:hover {
+  background-color: var(--primary-50);
+  border-color: var(--primary-200);
+  color: var(--primary-700);
+}
+
+.quick-reply-btn:hover .quick-reply-icon {
+  opacity: 1;
+}
+
+.quick-reply-btn:active {
+  background-color: var(--primary-100);
+}
+
+.quick-reply-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .quick-reply-btn:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--primary-600);
+  color: var(--primary-300);
+}
+
+[data-theme="dark"] .quick-reply-btn:hover .quick-reply-icon {
+  opacity: 1;
+}
+
+[data-theme="dark"] .quick-reply-btn:active {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
 .chat-input-container {
   display: flex;
   gap: var(--space-2);
@@ -1721,5 +1826,66 @@ body {
   .form-actions .secondary-btn {
     width: 100%;
   }
+}
 
+/* ===== 快捷回复管理样式 ===== */
+
+.setting-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
+
+.setting-checkbox input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+.quick-reply-management {
+  margin-top: var(--space-3);
+}
+
+.quick-reply-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+
+.quick-reply-text {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
+
+.quick-reply-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.add-quick-reply {
+  margin-top: var(--space-3);
+}
+
+.add-quick-reply input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.add-quick-reply input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }

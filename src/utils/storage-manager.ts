@@ -17,6 +17,35 @@ export class StorageManager {
       style: 'bullet',
       language: 'auto'
     },
+    quickReply: {
+      enabled: true,
+      replies: [
+        {
+          id: 'default-1',
+          text: '你如何评价这个新闻？',
+          isDefault: true,
+          createdAt: Date.now()
+        },
+        {
+          id: 'default-2',
+          text: '这是真的吗？',
+          isDefault: true,
+          createdAt: Date.now()
+        },
+        {
+          id: 'default-3',
+          text: '能详细解释一下吗？',
+          isDefault: true,
+          createdAt: Date.now()
+        },
+        {
+          id: 'default-4',
+          text: '有什么建议吗？',
+          isDefault: true,
+          createdAt: Date.now()
+        }
+      ]
+    },
     ui: {
       theme: 'auto',
       fontSize: 'medium'

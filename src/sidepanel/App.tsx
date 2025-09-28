@@ -26,6 +26,10 @@ const App: React.FC = () => {
       style: 'bullet',
       language: 'auto'
     },
+    quickReply: {
+      enabled: true,
+      replies: []
+    },
     ui: {
       theme: 'auto',
       fontSize: 'medium'
@@ -604,6 +608,7 @@ const App: React.FC = () => {
             aiConfig={settings.ai}
             summaryContext={currentSummary?.content}
             onBackToSummary={currentSummary ? () => setCurrentView('summary') : undefined}
+            quickReplySettings={settings.quickReply}
           />
         )}
         
