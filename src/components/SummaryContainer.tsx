@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Copy, Save, MessageSquare } from 'lucide-react';
 import { SummaryResult } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
+import { useAutoScroll } from '../hooks/useAutoScroll';
 
 interface SummaryContainerProps {
   summary: SummaryResult;
@@ -16,6 +17,13 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
   streamingContent,
   isGenerating 
 }) => {
+  // 自动滚动Hook，仅在生成摘要时启用
+  const { scrollRef, scrollToBottom, isAutoScrolling } = useAutoScroll({
+    enabled: isGenerating,
+    delay: 50,
+    behavior: 'smooth',
+    threshold: 20
+  });
   const handleCopy = async () => {
     try {
       const contentToCopy = isGenerating && streamingContent ? streamingContent : summary.content;
@@ -34,6 +42,13 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
     return new Date(timestamp).toLocaleString('zh-CN');
   };
 
+  // 当流式内容更新时触发滚动
+  useEffect(() => {
+    if (isGenerating && streamingContent && isAutoScrolling) {
+      scrollToBottom();
+    }
+  }, [streamingContent, isGenerating, isAutoScrolling, scrollToBottom]);
+
   return (
     <div className="summary-container">
       <div className="summary-header">
@@ -48,7 +63,7 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
         </div>
       </div>
       
-      <div className="summary-content">
+      <div className="summary-content" ref={scrollRef}>
         {isGenerating && streamingContent ? (
           <MarkdownRenderer content={streamingContent} />
         ) : (

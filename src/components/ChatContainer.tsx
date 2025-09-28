@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Trash2, ArrowLeft, Zap } from 'lucide-react';
 import { ChatSession, ChatMessage, MultiAIConfig, QuickReplySettings } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import MarkdownRenderer from './MarkdownRenderer';
+import { useAutoScroll } from '../hooks/useAutoScroll';
 
 interface ChatContainerProps {
   session: ChatSession;
@@ -25,6 +26,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(true);
+
+  // 自动滚动Hook
+  const { scrollRef, scrollToBottom, isAutoScrolling, resetAutoScroll } = useAutoScroll({
+    enabled: true,
+    delay: 100,
+    behavior: 'smooth',
+    threshold: 30
+  });
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -197,6 +206,19 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     setShowQuickReplies(!showQuickReplies);
   };
 
+  // 当消息列表或流式内容更新时触发滚动
+  useEffect(() => {
+    if (isAutoScrolling) {
+      scrollToBottom();
+    }
+  }, [session.messages, streamingContent, isAutoScrolling, scrollToBottom]);
+
+  // 清空对话时重置滚动状态
+  const handleClearChatWithScroll = () => {
+    handleClearChat();
+    resetAutoScroll();
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -208,12 +230,12 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           )}
           <h4>智能问答</h4>
         </div>
-        <button className="icon-btn" onClick={handleClearChat} title="清空对话">
+        <button className="icon-btn" onClick={handleClearChatWithScroll} title="清空对话">
           <Trash2 size={16} />
         </button>
       </div>
       
-      <div className="chat-messages">
+      <div className="chat-messages" ref={scrollRef}>
         {session.messages.map((message, index) => {
           // 判断是否是摘要消息（第一条消息且以📋开头）
           const isSummaryMessage = index === 0 && message.role === 'assistant' && message.content.startsWith('📋');
