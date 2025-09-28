@@ -19,6 +19,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -43,10 +44,17 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       // 创建AI服务实例
       const aiService = new AIService(aiConfig);
       
-      // 调用AI服务生成回复
-      const aiResponse = await aiService.generateChatResponse(
+      // 重置流式内容
+      setStreamingContent('');
+      
+      // 调用AI服务生成回复（流式）
+      const aiResponse = await aiService.generateChatResponseStream(
         updatedSession.messages,
-        summaryContext
+        summaryContext,
+        (chunk: string) => {
+          // 实时更新流式内容
+          setStreamingContent(prev => prev + chunk);
+        }
       );
 
       // 创建AI回复消息
@@ -65,6 +73,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
 
       onUpdateSession(finalSession);
       setIsLoading(false);
+      setStreamingContent(''); // 清除流式内容
     } catch (err) {
       console.error('Chat error:', err);
       
@@ -83,6 +92,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
 
       onUpdateSession(errorSession);
       setIsLoading(false);
+      setStreamingContent(''); // 清除流式内容
     }
   };
 
@@ -137,11 +147,15 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
         {isLoading && (
           <div className="message ai-message">
             <div className="message-content">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
+              {streamingContent ? (
+                <MarkdownRenderer content={streamingContent} />
+              ) : (
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              )}
             </div>
           </div>
         )}

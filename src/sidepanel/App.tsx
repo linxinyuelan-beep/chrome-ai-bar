@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
+  const [streamingSummary, setStreamingSummary] = useState('');
 
   // 初始化设置
   useEffect(() => {
@@ -168,12 +169,20 @@ const App: React.FC = () => {
         throw new Error('请先在设置中配置API密钥');
       }
 
-      // 创建AI服务实例并生成摘要
+      // 创建AI服务实例并生成摘要（流式）
       const aiService = new AIService(settings.ai);
-      const summaryContent = await aiService.generateSummary(
+      
+      // 重置流式摘要内容
+      setStreamingSummary('');
+      
+      const summaryContent = await aiService.generateSummaryStream(
         extractedContent.content,
         settings.summary,
-        'page'
+        'page',
+        (chunk: string) => {
+          // 实时更新流式摘要内容
+          setStreamingSummary(prev => prev + chunk);
+        }
       );
 
       // 创建摘要结果
@@ -193,11 +202,13 @@ const App: React.FC = () => {
 
       setCurrentSummary(summary);
       setCurrentView('summary');
+      setStreamingSummary(''); // 清除流式内容
     } catch (err) {
       console.error('生成页面摘要失败:', err);
       const errorMessage = err instanceof Error ? err.message : '生成摘要失败，请重试';
       setError(errorMessage);
       setCurrentView('error');
+      setStreamingSummary(''); // 清除流式内容
     } finally {
       setIsLoading(false);
     }
@@ -304,12 +315,20 @@ const App: React.FC = () => {
         throw new Error('请先在设置中配置API密钥');
       }
 
-      // 创建AI服务实例并生成摘要
+      // 创建AI服务实例并生成摘要（流式）
       const aiService = new AIService(settings.ai);
-      const summaryContent = await aiService.generateSummary(
+      
+      // 重置流式摘要内容
+      setStreamingSummary('');
+      
+      const summaryContent = await aiService.generateSummaryStream(
         extractedContent.content,
         settings.summary,
-        'selection'
+        'selection',
+        (chunk: string) => {
+          // 实时更新流式摘要内容
+          setStreamingSummary(prev => prev + chunk);
+        }
       );
 
       // 创建摘要结果
@@ -329,6 +348,7 @@ const App: React.FC = () => {
 
       setCurrentSummary(summary);
       setCurrentView('summary');
+      setStreamingSummary(''); // 清除流式内容
     } catch (err) {
       console.error('生成选中内容摘要失败:', err);
       const errorMessage = err instanceof Error ? err.message : '生成摘要失败，请重试';
@@ -339,64 +359,7 @@ const App: React.FC = () => {
     }
   };
 
-  // 处理传递的选中内容摘要（从右键菜单触发）
-  const handleSummarizeSelectionWithText = async (selectedText: string) => {
-    setIsLoading(true);
-    setCurrentView('loading');
-    setError(null);
 
-    try {
-      // 获取当前页面URL
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      const currentUrl = tab.url || window.location.href;
-
-      // 清理内容
-      const cleanedContent = selectedText.replace(/\s+/g, ' ').trim().substring(0, 50000);
-      
-      // 统计字数
-      const chineseChars = cleanedContent.match(/[\u4e00-\u9fa5]/g);
-      const englishWords = cleanedContent.match(/[a-zA-Z]+/g);
-      const wordCount = (chineseChars ? chineseChars.length : 0) + (englishWords ? englishWords.length : 0);
-
-      // 检查AI配置
-      if (!settings.ai.apiKey) {
-        throw new Error('请先在设置中配置API密钥');
-      }
-
-      // 创建AI服务实例并生成摘要
-      const aiService = new AIService(settings.ai);
-      const summaryContent = await aiService.generateSummary(
-        cleanedContent,
-        settings.summary,
-        'selection'
-      );
-
-      // 创建摘要结果
-      const summary: SummaryResult = {
-        id: Date.now().toString(),
-        title: '选中内容摘要',
-        content: summaryContent,
-        url: currentUrl,
-        timestamp: Date.now(),
-        wordCount: wordCount,
-        type: 'selection'
-      };
-
-      // 保存到历史记录
-      const storageManager = new StorageManager();
-      await storageManager.saveSummary(summary);
-
-      setCurrentSummary(summary);
-      setCurrentView('summary');
-    } catch (err) {
-      console.error('生成选中内容摘要失败:', err);
-      const errorMessage = err instanceof Error ? err.message : '生成摘要失败，请重试';
-      setError(errorMessage);
-      setCurrentView('error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // 处理右键触发的页面摘要（重新获取最新设置）
   const handleTriggeredPageSummary = async () => {
@@ -437,12 +400,20 @@ const App: React.FC = () => {
         throw new Error('请先在设置中配置API密钥');
       }
 
-      // 创建AI服务实例并生成摘要
+      // 创建AI服务实例并生成摘要（流式）
       const aiService = new AIService(currentSettings.ai);
-      const summaryContent = await aiService.generateSummary(
+      
+      // 重置流式摘要内容
+      setStreamingSummary('');
+      
+      const summaryContent = await aiService.generateSummaryStream(
         extractedContent.content,
         currentSettings.summary,
-        'page'
+        'page',
+        (chunk: string) => {
+          // 实时更新流式摘要内容
+          setStreamingSummary(prev => prev + chunk);
+        }
       );
 
       // 创建摘要结果
@@ -504,12 +475,20 @@ const App: React.FC = () => {
         throw new Error('请先在设置中配置API密钥');
       }
 
-      // 创建AI服务实例并生成摘要
+      // 创建AI服务实例并生成摘要（流式）
       const aiService = new AIService(currentSettings.ai);
-      const summaryContent = await aiService.generateSummary(
+      
+      // 重置流式摘要内容
+      setStreamingSummary('');
+      
+      const summaryContent = await aiService.generateSummaryStream(
         cleanedContent,
         currentSettings.summary,
-        'selection'
+        'selection',
+        (chunk: string) => {
+          // 实时更新流式摘要内容
+          setStreamingSummary(prev => prev + chunk);
+        }
       );
 
       // 创建摘要结果
@@ -610,13 +589,18 @@ const App: React.FC = () => {
         {currentView === 'welcome' && <WelcomeScreen />}
         
         {currentView === 'loading' && (
-          <LoadingScreen message="正在生成摘要..." />
+          <LoadingScreen 
+            message="正在生成摘要..." 
+            streamingContent={streamingSummary}
+          />
         )}
         
         {currentView === 'summary' && currentSummary && (
           <SummaryContainer
             summary={currentSummary}
             onStartChat={handleStartChat}
+            streamingContent={streamingSummary}
+            isGenerating={isLoading}
           />
         )}
         

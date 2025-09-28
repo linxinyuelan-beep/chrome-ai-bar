@@ -9,14 +9,19 @@ interface AIResponse {
   };
 }
 
+interface StreamChunk {
+  delta: string;
+  finished: boolean;
+}
+
 interface RateLimitInfo {
   count: number;
   resetTime: number;
 }
 
 export class AIService {
-  private cache = new Map<string, { data: AIResponse; timestamp: number }>();
-  private rateLimiter = new Map<string, RateLimitInfo>();
+  private readonly cache = new Map<string, { data: AIResponse; timestamp: number }>();
+  private readonly rateLimiter = new Map<string, RateLimitInfo>();
   private config: AIConfig;
 
   constructor(config: AIConfig) {
@@ -28,11 +33,12 @@ export class AIService {
     this.config = config;
   }
 
-  // 生成摘要
-  async generateSummary(
+  // 生成摘要（流式输出）
+  async generateSummaryStream(
     content: string,
     settings: SummarySettings,
-    type: 'page' | 'selection' = 'page'
+    type: 'page' | 'selection' = 'page',
+    onChunk?: (chunk: string) => void
   ): Promise<string> {
     if (!content || content.trim().length === 0) {
       throw new Error('内容不能为空');
@@ -46,6 +52,14 @@ export class AIService {
     const cacheKey = this.getCacheKey('summary', content, settings);
     const cached = this.cache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < 3600000) { // 1小时缓存
+      // 对于缓存结果，模拟流式输出
+      if (onChunk) {
+        const chunks = this.simulateStreamChunks(cached.data.content);
+        for (const chunk of chunks) {
+          await new Promise(resolve => setTimeout(resolve, 50)); // 50ms延迟
+          onChunk(chunk);
+        }
+      }
       return cached.data.content;
     }
 
@@ -55,22 +69,32 @@ export class AIService {
     // 构建提示词
     const prompt = this.buildSummaryPrompt(content, settings, type);
 
-    // 调用AI服务
-    const response = await this.callAI(prompt);
+    // 调用AI服务（流式）
+    const fullResponse = await this.callAIStream(prompt, onChunk);
 
     // 缓存结果
     this.cache.set(cacheKey, {
-      data: response,
+      data: { content: fullResponse },
       timestamp: Date.now()
     });
 
-    return response.content;
+    return fullResponse;
   }
 
-  // 生成聊天回复
-  async generateChatResponse(
+  // 生成摘要（非流式，保持向后兼容）
+  async generateSummary(
+    content: string,
+    settings: SummarySettings,
+    type: 'page' | 'selection' = 'page'
+  ): Promise<string> {
+    return this.generateSummaryStream(content, settings, type);
+  }
+
+  // 生成聊天回复（流式输出）
+  async generateChatResponseStream(
     messages: ChatMessage[],
-    context?: string
+    context?: string,
+    onChunk?: (chunk: string) => void
   ): Promise<string> {
     if (!this.config.apiKey) {
       throw new Error('请先配置API密钥');
@@ -82,26 +106,40 @@ export class AIService {
     // 构建对话消息
     const chatMessages = this.buildChatMessages(messages, context);
 
-    // 调用AI服务
-    const response = await this.callAI(chatMessages);
+    // 调用AI服务（流式）
+    const fullResponse = await this.callAIStream(chatMessages, onChunk);
 
-    return response.content;
+    return fullResponse;
   }
 
-  // 调用AI服务
-  private async callAI(messages: any): Promise<AIResponse> {
+  // 生成聊天回复（非流式，保持向后兼容）
+  async generateChatResponse(
+    messages: ChatMessage[],
+    context?: string
+  ): Promise<string> {
+    return this.generateChatResponseStream(messages, context);
+  }
+
+  // 调用AI服务（流式）
+  private async callAIStream(messages: any, onChunk?: (chunk: string) => void): Promise<string> {
     const { provider } = this.config;
 
     switch (provider) {
       case 'openai':
-        return this.callOpenAI(messages);
+        return this.callOpenAIStream(messages, onChunk);
       case 'claude':
-        return this.callClaude(messages);
+        return this.callClaudeStream(messages, onChunk);
       case 'gemini':
-        return this.callGemini(messages);
+        return this.callGeminiStream(messages, onChunk);
       default:
         throw new Error(`不支持的AI提供商: ${provider}`);
     }
+  }
+
+  // 调用AI服务（非流式，保持向后兼容）
+  private async callAI(messages: any): Promise<AIResponse> {
+    const fullResponse = await this.callAIStream(messages);
+    return { content: fullResponse };
   }
 
   // 获取OpenAI模型的正确token参数名
@@ -146,6 +184,94 @@ export class AIService {
     };
   }
 
+  // OpenAI 流式API调用
+  private async callOpenAIStream(messages: any, onChunk?: (chunk: string) => void): Promise<string> {
+    const response = await this.createOpenAIStreamRequest(messages);
+    return this.processOpenAIStreamResponse(response, onChunk);
+  }
+
+  // 创建OpenAI流式请求
+  private async createOpenAIStreamRequest(messages: any): Promise<Response> {
+    const baseUrl = this.config.baseUrl || 'https://api.openai.com/v1';
+    const model = this.config.model || 'gpt-5-mini';
+
+    const requestBody = {
+      model,
+      messages: Array.isArray(messages) ? messages : [{ role: 'user', content: messages }],
+      temperature: 0.7,
+      stream: true,
+      ...this.getOpenAITokensParam(model, 2000),
+    };
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error?.message || `API错误: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('响应流不可用');
+    }
+
+    return response;
+  }
+
+  // 处理OpenAI流式响应
+  private async processOpenAIStreamResponse(response: Response, onChunk?: (chunk: string) => void): Promise<string> {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const content = this.parseOpenAIStreamChunk(chunk);
+        if (content) {
+          fullContent += content;
+          onChunk?.(content);
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return fullContent;
+  }
+
+  // 解析OpenAI流式响应块
+  private parseOpenAIStreamChunk(chunk: string): string {
+    const lines = chunk.split('\n');
+    let content = '';
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        
+        try {
+          const parsed = JSON.parse(data);
+          const deltaContent = parsed.choices?.[0]?.delta?.content || '';
+          content += deltaContent;
+        } catch (error) {
+          console.warn('Failed to parse stream chunk:', error);
+        }
+      }
+    }
+
+    return content;
+  }
+
   // Claude API调用
   private async callClaude(messages: any): Promise<AIResponse> {
     const baseUrl = this.config.baseUrl || 'https://api.anthropic.com/v1';
@@ -175,6 +301,23 @@ export class AIService {
       content: data.content[0]?.text || '',
       usage: data.usage,
     };
+  }
+
+  // Claude 流式API调用 (Claude API暂不支持流式，使用模拟流式输出)
+  private async callClaudeStream(messages: any, onChunk?: (chunk: string) => void): Promise<string> {
+    // 先获取完整响应
+    const response = await this.callClaude(messages);
+    
+    // 模拟流式输出
+    if (onChunk && response.content) {
+      const chunks = this.simulateStreamChunks(response.content);
+      for (const chunk of chunks) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        onChunk(chunk);
+      }
+    }
+    
+    return response.content;
   }
 
   // Gemini API调用
@@ -211,6 +354,23 @@ export class AIService {
     return {
       content: data.candidates?.[0]?.content?.parts?.[0]?.text || '',
     };
+  }
+
+  // Gemini 流式API调用 (使用模拟流式输出)
+  private async callGeminiStream(messages: any, onChunk?: (chunk: string) => void): Promise<string> {
+    // 先获取完整响应
+    const response = await this.callGemini(messages);
+    
+    // 模拟流式输出
+    if (onChunk && response.content) {
+      const chunks = this.simulateStreamChunks(response.content);
+      for (const chunk of chunks) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        onChunk(chunk);
+      }
+    }
+    
+    return response.content;
   }
 
   // 构建摘要提示词
@@ -353,6 +513,18 @@ ${context}
   // 清除频率限制
   clearRateLimit(): void {
     this.rateLimiter.clear();
+  }
+
+  // 模拟流式输出的分块函数
+  private simulateStreamChunks(content: string): string[] {
+    const chunks: string[] = [];
+    const chunkSize = Math.max(1, Math.floor(content.length / 50)); // 分成大约50块
+    
+    for (let i = 0; i < content.length; i += chunkSize) {
+      chunks.push(content.slice(i, i + chunkSize));
+    }
+    
+    return chunks;
   }
 
   // 验证API服务是否可用

@@ -6,20 +6,27 @@ import MarkdownRenderer from './MarkdownRenderer';
 interface SummaryContainerProps {
   summary: SummaryResult;
   onStartChat: () => void;
+  streamingContent?: string; // 流式内容
+  isGenerating?: boolean; // 是否正在生成
 }
 
-const SummaryContainer: React.FC<SummaryContainerProps> = ({ summary, onStartChat }) => {
+const SummaryContainer: React.FC<SummaryContainerProps> = ({ 
+  summary, 
+  onStartChat, 
+  streamingContent,
+  isGenerating 
+}) => {
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(summary.content);
-      // TODO: 显示复制成功提示
+      const contentToCopy = isGenerating && streamingContent ? streamingContent : summary.content;
+      await navigator.clipboard.writeText(contentToCopy);
+      console.log('复制成功');
     } catch (err) {
       console.error('Failed to copy:', err);
     }
   };
 
   const handleSave = async () => {
-    // TODO: 实现保存到历史记录
     console.log('Save summary:', summary);
   };
 
@@ -42,7 +49,11 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({ summary, onStartCha
       </div>
       
       <div className="summary-content">
-        <MarkdownRenderer content={summary.content} />
+        {isGenerating && streamingContent ? (
+          <MarkdownRenderer content={streamingContent} />
+        ) : (
+          <MarkdownRenderer content={summary.content} />
+        )}
       </div>
       
       <div className="summary-meta">
