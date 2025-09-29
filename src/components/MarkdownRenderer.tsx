@@ -51,6 +51,12 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
     blockquote: CustomBlockquote,
   };
 
+  // 预处理内容：将单个换行符转换为双换行符，保持原有的段落换行
+  const processedContent = content
+    .replace(/\n\n/g, '___DOUBLE_NEWLINE___') // 临时标记段落换行
+    .replace(/\n/g, '  \n') // 将单换行转换为Markdown的强制换行（两个空格+换行）
+    .replace(/___DOUBLE_NEWLINE___/g, '\n\n'); // 恢复段落换行
+
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
@@ -58,7 +64,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
         rehypePlugins={[rehypeRaw]}
         components={components}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

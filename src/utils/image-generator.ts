@@ -211,7 +211,7 @@ export class ImageGenerator {
         <h1 style="font-size: 28px; font-weight: 700; margin: 0 0 20px 0; line-height: 1.3; color: white;">
           ${summary.title}
         </h1>
-                <div style="font-size: 16px; line-height: 1.5; color: white; opacity: 0.95; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
+        <div style="font-size: 16px; line-height: 1.4; color: white; opacity: 0.95; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
           ${this.formatContent(summary.content, 600)}
         </div>
       </div>
@@ -242,7 +242,7 @@ export class ImageGenerator {
         <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 20px 0; color: #e91e63;">
           ✨ ${summary.title}
         </h1>
-                <div style="font-size: 16px; line-height: 1.5; color: #333; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
+        <div style="font-size: 16px; line-height: 1.4; color: #333; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
           ${this.formatContent(summary.content, 500)} 💫
         </div>
       </div>
@@ -275,7 +275,7 @@ export class ImageGenerator {
         <h1 style="font-size: 22px; font-weight: 600; margin: 0 0 20px 0; color: #1a1a1a; line-height: 1.4;">
           ${summary.title}
         </h1>
-        <div style="font-size: 15px; line-height: 1.5; color: #444; margin-bottom: 20px; text-align: justify; word-wrap: break-word; overflow-wrap: break-word;">
+        <div style="font-size: 15px; line-height: 1.4; color: #444; margin-bottom: 20px; text-align: justify; word-wrap: break-word; overflow-wrap: break-word;">
           ${this.formatContent(summary.content, 650)}
         </div>
       </div>
@@ -313,7 +313,7 @@ export class ImageGenerator {
           #${summary.title}#
         </h2>
         
-        <div style="font-size: 14px; line-height: 1.4; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
+        <div style="font-size: 14px; line-height: 1.3; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
           ${this.formatContent(summary.content, 400)} 
           
           #AI摘要 #智能助手 #效率工具
@@ -352,7 +352,7 @@ export class ImageGenerator {
           ${summary.title}
         </h2>
         
-        <div style="font-size: 14px; line-height: 1.5; color: #444; text-align: justify; text-indent: 2em; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
+        <div style="font-size: 14px; line-height: 1.4; color: #444; text-align: justify; text-indent: 2em; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
           ${this.formatContent(summary.content, 700)}
         </div>
       </div>
@@ -381,56 +381,32 @@ export class ImageGenerator {
     // 先转义HTML（但保留换行符）
     formatted = this.escapeHtml(formatted);
     
-    // 处理各种类型的换行符
+    // 处理换行：使用更紧凑的段落间距
     formatted = formatted
-      .replace(/\r\n/g, '<br>') // Windows换行符
-      .replace(/\n/g, '<br>')   // Unix换行符
-      .replace(/\r/g, '<br>');  // 老Mac换行符
+      // 首先标记段落换行（双换行）
+      .replace(/\r?\n\s*\r?\n/g, '__PARAGRAPH_BREAK__')
+      // 然后处理单换行
+      .replace(/\r?\n/g, '<br>')
+      // 恢复段落换行，使用紧凑的段落间距
+      .replace(/__PARAGRAPH_BREAK__/g, '</p><p style="margin: 0.5em 0;">');
     
-    // 先处理 markdown 格式，包括列表项
+    // 处理 markdown 格式
     formatted = formatted
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/`(.*?)`/g, '<code style="background:#f1f1f1;padding:2px 4px;border-radius:3px;">$1</code>')
-      // 处理列表项，并在列表项后添加适当间距
+      // 处理列表项
       .replace(/^- (.*?)(<br>|$)/gm, '• $1<br>')
       .replace(/^\* (.*?)(<br>|$)/gm, '• $1<br>')
       .replace(/^\d+\. (.*?)(<br>|$)/gm, '$1<br>');
     
-    // 处理连续的<br>标签，减少段落间距
-    formatted = formatted.replace(/(<br\s*\/?>){3,}/g, '<br><br>'); // 3个或更多变成2个
+    // 清理多余的连续<br>标签（超过2个的减少为1个）
+    formatted = formatted.replace(/(<br\s*\/?>){2,}/g, '<br>');
     
-    // 对于一般的双换行，使用紧凑间距（但保持列表项的正常间距）
-    const lines = formatted.split('<br>');
-    const processedLines: string[] = [];
-    let skipNext = false;
-    
-    for (let i = 0; i < lines.length; i++) {
-      if (skipNext) {
-        skipNext = false;
-        continue;
-      }
-      
-      const currentLine = lines[i].trim();
-      const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
-      
-      processedLines.push(lines[i]);
-      
-      // 如果当前行和下一行都不是列表项，且有空行，使用紧凑间距
-      if (i < lines.length - 1) {
-        const isCurrentList = currentLine.startsWith('•') || /^\d+\./.test(currentLine);
-        const isNextList = nextLine.startsWith('•') || /^\d+\./.test(nextLine);
-        const isEmpty = nextLine === '';
-        
-        if (!isCurrentList && !isNextList && isEmpty && i + 2 < lines.length) {
-          // 跳过空行，添加紧凑间距
-          processedLines.push('<span style="line-height:0.6;display:block;">&nbsp;</span>');
-          skipNext = true; // 标记跳过下一个空行
-        }
-      }
+    // 如果内容包含段落分隔，需要包装在 <p> 标签中
+    if (formatted.includes('</p><p')) {
+      formatted = '<p style="margin: 0 0 0.5em 0;">' + formatted + '</p>';
     }
-    
-    formatted = processedLines.join('<br>');
     
     return formatted;
   }
