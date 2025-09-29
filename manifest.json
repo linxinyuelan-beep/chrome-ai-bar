@@ -37,18 +37,18 @@
   "action": {
     "default_title": "智能摘要助手",
     "default_icon": {
-      "16": "assets/icon16.svg",
-      "32": "assets/icon32.svg",
-      "48": "assets/icon48.svg",
-      "128": "assets/icon128.svg"
+      "16": "assets/icon16.png",
+      "32": "assets/icon32.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
     }
   },
   
   "icons": {
-    "16": "assets/icon16.svg",
-    "32": "assets/icon32.svg",
-    "48": "assets/icon48.svg",
-    "128": "assets/icon128.svg"
+    "16": "assets/icon16.png",
+    "32": "assets/icon32.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
   },
   
   "web_accessible_resources": [

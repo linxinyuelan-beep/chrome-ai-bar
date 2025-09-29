@@ -40,6 +40,19 @@ const App: React.FC = () => {
   const [hasSelection, setHasSelection] = useState(false);
   const [streamingSummary, setStreamingSummary] = useState('');
 
+  // 监听状态变化
+  useEffect(() => {
+    console.log('📊 [App] 状态变化 - currentView:', currentView);
+  }, [currentView]);
+
+  useEffect(() => {
+    console.log('📊 [App] 状态变化 - currentSummary:', currentSummary?.id || 'null');
+  }, [currentSummary]);
+
+  useEffect(() => {
+    console.log('📊 [App] 状态变化 - currentChatSession:', currentChatSession?.id || 'null');
+  }, [currentChatSession]);
+
   // 初始化设置
   useEffect(() => {
     const initializeApp = async () => {
@@ -526,7 +539,23 @@ const App: React.FC = () => {
 
   // 关闭面板
   const handleClosePanel = () => {
-    setCurrentView(currentSummary ? 'summary' : 'welcome');
+    console.log('🚪 [App] handleClosePanel 被调用:', {
+      currentView,
+      hasSummary: !!currentSummary,
+      hasChatSession: !!currentChatSession
+    });
+    
+    // 优先返回到聊天界面，其次是摘要，最后是欢迎页面
+    if (currentChatSession) {
+      console.log('💬 [App] 返回到聊天界面');
+      setCurrentView('chat');
+    } else if (currentSummary) {
+      console.log('📄 [App] 返回到摘要页面');
+      setCurrentView('summary');
+    } else {
+      console.log('🏠 [App] 返回到欢迎页面');
+      setCurrentView('welcome');
+    }
   };
 
   // 保存设置
@@ -535,14 +564,77 @@ const App: React.FC = () => {
       const storageManager = new StorageManager();
       await storageManager.saveSettings(newSettings);
       setSettings(newSettings);
-      setCurrentView(currentSummary ? 'summary' : 'welcome');
+      
+      console.log('💾 [App] 设置保存完成，决定返回视图:', {
+        currentView,
+        hasSummary: !!currentSummary,
+        hasChatSession: !!currentChatSession
+      });
+      
+      // 优先返回到聊天界面，其次是摘要，最后是欢迎页面
+      if (currentChatSession) {
+        setCurrentView('chat');
+      } else if (currentSummary) {
+        setCurrentView('summary');
+      } else {
+        setCurrentView('welcome');
+      }
     } catch (err) {
       console.error('Failed to save settings:', err);
     }
   };
 
+  // 处理选择历史摘要
+  const handleSelectHistorySummary = (summary: SummaryResult) => {
+    setCurrentSummary(summary);
+    setCurrentView('summary');
+    // 清理之前的对话会话，因为选择了新的摘要
+    setCurrentChatSession(null);
+  };
+
+  // 处理选择历史对话
+  const handleSelectHistoryChat = (chat: ChatSession) => {
+    console.log('🔄 [App] handleSelectHistoryChat 开始执行:', {
+      chatId: chat.id,
+      chatTitle: chat.title,
+      messageCount: chat.messages.length,
+      hasContext: !!chat.context,
+      currentView: currentView,
+      currentSummary: currentSummary?.id,
+      currentChatSession: currentChatSession?.id
+    });
+    
+    // 先设置聊天会话和视图，确保直接进入聊天界面
+    console.log('📝 [App] 设置聊天会话和视图');
+    setCurrentChatSession(chat);
+    setCurrentView('chat');
+    
+    // 如果对话有关联的摘要上下文，静默恢复摘要信息作为背景上下文
+    if (chat.context && !currentSummary) {
+      console.log('📋 [App] 准备恢复摘要上下文:', chat.context.substring(0, 100));
+      const summaryFromContext: SummaryResult = {
+        id: `context-${chat.id}`,
+        title: chat.title.replace('关于"', '').replace('"的对话', '') || '相关摘要',
+        content: chat.context,
+        url: '',
+        timestamp: chat.timestamp,
+        wordCount: chat.context.length,
+        type: 'page'
+      };
+      // 延迟设置摘要，避免影响视图切换
+      setTimeout(() => {
+        console.log('⏰ [App] 延迟设置摘要上下文');
+        setCurrentSummary(summaryFromContext);
+      }, 0);
+    } else {
+      console.log('❌ [App] 跳过摘要上下文恢复:', { hasContext: !!chat.context, hasSummary: !!currentSummary });
+    }
+    
+    console.log('✅ [App] handleSelectHistoryChat 执行完成');
+  };
+
   // 开始聊天
-  const handleStartChat = () => {
+  const handleStartChat = async () => {
     if (currentSummary) {
       // 创建摘要内容作为第一条系统消息
       const summaryMessage: ChatMessage = {
@@ -552,13 +644,26 @@ const App: React.FC = () => {
         timestamp: Date.now()
       };
 
+      // 生成更好的对话标题
+      const chatTitle = currentSummary.title.length > 30 
+        ? `关于"${currentSummary.title.substring(0, 30)}..."的对话` 
+        : `关于"${currentSummary.title}"的对话`;
+
       const newChatSession: ChatSession = {
         id: Date.now().toString(),
-        title: `关于"${currentSummary.title}"的对话`,
+        title: chatTitle,
         messages: [summaryMessage], // 将摘要作为第一条消息
         context: currentSummary.content,
         timestamp: Date.now()
       };
+      
+      // 保存新的聊天会话到历史记录
+      try {
+        const storageManager = new StorageManager();
+        await storageManager.saveChat(newChatSession);
+      } catch (error) {
+        console.error('Failed to save initial chat session:', error);
+      }
       
       setCurrentChatSession(newChatSession);
       setCurrentView('chat');
@@ -583,6 +688,17 @@ const App: React.FC = () => {
       />
 
       <main className="content-area">
+        {(() => {
+          console.log('🎯 [App] 渲染视图:', {
+            currentView,
+            hasSummary: !!currentSummary,
+            hasChatSession: !!currentChatSession,
+            summaryId: currentSummary?.id,
+            chatSessionId: currentChatSession?.id
+          });
+          return null;
+        })()}
+        
         {currentView === 'welcome' && <WelcomeScreen />}
         
         {currentView === 'loading' && (
@@ -630,8 +746,8 @@ const App: React.FC = () => {
         {currentView === 'history' && (
           <HistoryPanel
             onClose={handleClosePanel}
-            onSelectSummary={setCurrentSummary}
-            onSelectChat={setCurrentChatSession}
+            onSelectSummary={handleSelectHistorySummary}
+            onSelectChat={handleSelectHistoryChat}
           />
         )}
       </main>

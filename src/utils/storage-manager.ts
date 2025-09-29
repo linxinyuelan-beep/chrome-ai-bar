@@ -1,4 +1,4 @@
-import { AppSettings, SummaryResult, ChatSession, AIProviderConfig, MultiAIConfig } from '../types/index';
+import { AppSettings, SummaryResult, ChatSession, AIProviderConfig } from '../types/index';
 
 interface StorageKeys {
   settings: 'settings';
@@ -7,7 +7,7 @@ interface StorageKeys {
 }
 
 export class StorageManager {
-  private defaultSettings: AppSettings = {
+  private readonly defaultSettings: AppSettings = {
     ai: {
       configs: [],
       defaultConfigId: undefined

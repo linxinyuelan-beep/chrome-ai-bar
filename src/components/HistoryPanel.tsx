@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, Trash2 } from 'lucide-react';
 import { SummaryResult, ChatSession } from '../types';
+import { StorageManager } from '../utils/storage-manager';
 
 interface HistoryPanelProps {
   onClose: () => void;
@@ -17,63 +18,60 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
   const [summaries, setSummaries] = useState<SummaryResult[]>([]);
   const [chats, setChats] = useState<ChatSession[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadHistory();
   }, []);
 
   const loadHistory = async () => {
+    setIsLoading(true);
     try {
-      // TODO: 从存储中加载历史记录
-      // 暂时使用模拟数据
-      const mockSummaries: SummaryResult[] = [
-        {
-          id: '1',
-          title: '示例摘要 1',
-          content: '这是一个示例摘要内容...',
-          url: 'https://example.com',
-          timestamp: Date.now() - 86400000,
-          wordCount: 100,
-          type: 'page'
-        },
-        {
-          id: '2',
-          title: '示例摘要 2',
-          content: '这是另一个示例摘要内容...',
-          url: 'https://example.com/page2',
-          timestamp: Date.now() - 172800000,
-          wordCount: 150,
-          type: 'selection'
-        }
-      ];
+      const storageManager = new StorageManager();
+      
+      // 从存储中加载真实历史记录
+      const [savedSummaries, savedChats] = await Promise.all([
+        storageManager.getSummaries(),
+        storageManager.getChats()
+      ]);
 
-      const mockChats: ChatSession[] = [
-        {
-          id: '1',
-          title: '关于示例摘要的对话',
-          messages: [
-            {
-              id: '1',
-              content: '这个摘要说了什么？',
-              role: 'user',
-              timestamp: Date.now() - 86400000
-            },
-            {
-              id: '2',
-              content: '这个摘要主要讲述了...',
-              role: 'assistant',
-              timestamp: Date.now() - 86400000 + 1000
-            }
-          ],
-          context: '摘要上下文...',
-          timestamp: Date.now() - 86400000
-        }
-      ];
+      console.log('Loaded history:', {
+        summariesCount: savedSummaries.length,
+        chatsCount: savedChats.length
+      });
 
-      setSummaries(mockSummaries);
-      setChats(mockChats);
+      setSummaries(savedSummaries);
+      setChats(savedChats);
     } catch (err) {
       console.error('Failed to load history:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteSummary = async (e: React.MouseEvent, summaryId: string) => {
+    e.stopPropagation(); // 防止触发选择事件
+    try {
+      const storageManager = new StorageManager();
+      await storageManager.deleteSummary(summaryId);
+      
+      // 更新本地状态
+      setSummaries(prev => prev.filter(s => s.id !== summaryId));
+    } catch (err) {
+      console.error('Failed to delete summary:', err);
+    }
+  };
+
+  const handleDeleteChat = async (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation(); // 防止触发选择事件
+    try {
+      const storageManager = new StorageManager();
+      await storageManager.deleteChat(chatId);
+      
+      // 更新本地状态
+      setChats(prev => prev.filter(c => c.id !== chatId));
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
     }
   };
 
@@ -109,6 +107,12 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
   };
 
   const handleSelectChat = (chat: ChatSession) => {
+    console.log('🎯 [HistoryPanel] handleSelectChat 被调用:', {
+      chatId: chat.id,
+      chatTitle: chat.title,
+      messageCount: chat.messages.length,
+      hasContext: !!chat.context
+    });
     onSelectChat(chat);
     onClose();
   };
@@ -153,20 +157,43 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
         <div className="history-list">
           {activeTab === 'summaries' && (
             <>
-              {filteredSummaries.length === 0 ? (
+              {isLoading && (
                 <div className="empty-state">
-                  <p>暂无摘要历史</p>
+                  <p>正在加载历史记录...</p>
                 </div>
-              ) : (
+              )}
+              
+              {!isLoading && filteredSummaries.length === 0 && (
+                <div className="empty-state">
+                  <p>{searchTerm ? '没有找到匹配的摘要' : '暂无摘要历史'}</p>
+                </div>
+              )}
+              
+              {!isLoading && filteredSummaries.length > 0 && (
                 filteredSummaries.map(summary => (
-                  <div 
+                  <button 
                     key={summary.id} 
                     className="history-item"
                     onClick={() => handleSelectSummary(summary)}
                   >
                     <div className="item-content">
-                      <h6>{summary.title}</h6>
-                      <p>{summary.content.substring(0, 100)}...</p>
+                      <div className="item-header">
+                        <h6 title={summary.title}>{summary.title}</h6>
+                        <button 
+                          className="delete-btn"
+                          onClick={(e) => handleDeleteSummary(e, summary.id)}
+                          title="删除这条摘要"
+                          aria-label="删除摘要"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <p className="item-preview" title={summary.content}>
+                        {summary.content.length > 120 
+                          ? `${summary.content.substring(0, 120)}...` 
+                          : summary.content
+                        }
+                      </p>
                       <div className="item-meta">
                         <span>{formatDate(summary.timestamp)}</span>
                         <span>{summary.wordCount} 字</span>
@@ -175,7 +202,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </>
@@ -183,25 +210,50 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
           
           {activeTab === 'chats' && (
             <>
-              {filteredChats.length === 0 ? (
+              {isLoading && (
                 <div className="empty-state">
-                  <p>暂无对话历史</p>
+                  <p>正在加载对话记录...</p>
                 </div>
-              ) : (
+              )}
+              
+              {!isLoading && filteredChats.length === 0 && (
+                <div className="empty-state">
+                  <p>{searchTerm ? '没有找到匹配的对话' : '暂无对话历史'}</p>
+                </div>
+              )}
+              
+              {!isLoading && filteredChats.length > 0 && (
                 filteredChats.map(chat => (
-                  <div 
+                  <button 
                     key={chat.id} 
                     className="history-item"
                     onClick={() => handleSelectChat(chat)}
                   >
                     <div className="item-content">
-                      <h6>{chat.title}</h6>
-                      <p>{chat.messages.length} 条消息</p>
+                      <div className="item-header">
+                        <h6 title={chat.title}>{chat.title}</h6>
+                        <button 
+                          className="delete-btn"
+                          onClick={(e) => handleDeleteChat(e, chat.id)}
+                          title="删除这个对话"
+                          aria-label="删除对话"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <p className="item-preview">
+                        {chat.messages.length} 条消息
+                        {chat.messages.length > 0 && (
+                          <span className="last-message">
+                            - {chat.messages[chat.messages.length - 1]?.content.substring(0, 50)}...
+                          </span>
+                        )}
+                      </p>
                       <div className="item-meta">
                         <span>{formatDate(chat.timestamp)}</span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </>

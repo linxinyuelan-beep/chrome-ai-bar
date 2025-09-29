@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Send, Trash2, ArrowLeft, Zap } from 'lucide-react';
 import { ChatSession, ChatMessage, MultiAIConfig, QuickReplySettings } from '../types/index';
 import { AIService } from '../utils/ai-service';
+import { StorageManager } from '../utils/storage-manager';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 
@@ -35,6 +36,37 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     threshold: 30
   });
 
+  // 自动保存聊天会话
+  const saveChatSession = async (updatedSession: ChatSession) => {
+    try {
+      const storageManager = new StorageManager();
+      await storageManager.saveChat(updatedSession);
+      console.log('Chat session saved:', updatedSession.id);
+    } catch (error) {
+      console.error('Failed to save chat session:', error);
+    }
+  };
+
+  // 生成智能标题
+  const generateSmartTitle = (messages: ChatMessage[], context?: string): string => {
+    // 如果有上下文（摘要内容），基于摘要生成标题
+    if (context) {
+      const contextWords = context.split(' ').slice(0, 8).join(' ');
+      return `关于"${contextWords}${context.length > 50 ? '...' : ''}"的对话`;
+    }
+    
+    // 查找第一条用户消息
+    const firstUserMessage = messages.find(msg => msg.role === 'user');
+    if (firstUserMessage) {
+      const messagePreview = firstUserMessage.content.length > 20 
+        ? firstUserMessage.content.substring(0, 20) + '...' 
+        : firstUserMessage.content;
+      return `关于"${messagePreview}"的对话`;
+    }
+    
+    return '新的对话';
+  };
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
 
@@ -47,15 +79,18 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
 
     const updatedSession = {
       ...session,
-      messages: [...session.messages, userMessage]
+      messages: [...session.messages, userMessage],
+      // 更新标题（基于第一条用户消息）
+      title: session.messages.length === 0 ? generateSmartTitle([userMessage], summaryContext) : session.title
     };
 
     onUpdateSession(updatedSession);
+    await saveChatSession(updatedSession);
     setInputText('');
     setIsLoading(true);
 
     try {
-            // 使用AI服务生成回复（流式）
+      // 使用AI服务生成回复（流式）
       const aiService = AIService.fromMultiConfig(aiConfig);
       if (!aiService) {
         throw new Error('AI配置不可用，请检查设置');
@@ -89,6 +124,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       };
 
       onUpdateSession(finalSession);
+      await saveChatSession(finalSession);
       setIsLoading(false);
       setStreamingContent(''); // 清除流式内容
     } catch (err) {
@@ -108,21 +144,23 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       };
 
       onUpdateSession(errorSession);
+      await saveChatSession(errorSession);
       setIsLoading(false);
       setStreamingContent(''); // 清除流式内容
     }
   };
 
-  const handleClearChat = () => {
+  const handleClearChat = async () => {
     const clearedSession = {
       ...session,
       messages: []
     };
     onUpdateSession(clearedSession);
+    await saveChatSession(clearedSession);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && e.metaKey) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -141,10 +179,13 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
 
     const updatedSession = {
       ...session,
-      messages: [...session.messages, userMessage]
+      messages: [...session.messages, userMessage],
+      // 更新标题（基于第一条用户消息）
+      title: session.messages.length === 0 ? generateSmartTitle([userMessage], summaryContext) : session.title
     };
 
     onUpdateSession(updatedSession);
+    await saveChatSession(updatedSession);
     setIsLoading(true);
     setShowQuickReplies(false);
 
@@ -179,6 +220,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       };
 
       onUpdateSession(finalSession);
+      await saveChatSession(finalSession);
       setStreamingContent('');
     } catch (error) {
       console.error('Failed to generate AI response:', error);
@@ -196,6 +238,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       };
 
       onUpdateSession(errorSession);
+      await saveChatSession(errorSession);
     } finally {
       setIsLoading(false);
       setStreamingContent('');
@@ -214,8 +257,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [session.messages, streamingContent, isAutoScrolling, scrollToBottom]);
 
   // 清空对话时重置滚动状态
-  const handleClearChatWithScroll = () => {
-    handleClearChat();
+  const handleClearChatWithScroll = async () => {
+    await handleClearChat();
     resetAutoScroll();
   };
 
@@ -315,7 +358,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="针对摘要内容提问..."
+          placeholder="针对摘要内容提问... (⌘+回车发送)"
           rows={2}
           disabled={isLoading}
         />
