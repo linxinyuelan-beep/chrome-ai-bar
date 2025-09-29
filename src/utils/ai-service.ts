@@ -426,6 +426,21 @@ export class AIService {
       case 'qa':
         styleInstruction = '使用问答的形式';
         break;
+      case 'xiaohongshu':
+        styleInstruction = '使用小红书风格：活泼、亲民、带有表情符号，使用"真的绝了"等网络用语，添加相关话题标签#，多使用感叹号';
+        break;
+      case 'zhihu':
+        styleInstruction = '使用知乎风格：理性、深度、逻辑清晰，以"题主"称呼，多使用数据和事实支撑，语调客观专业';
+        break;
+      case 'weibo':
+        styleInstruction = '使用微博风格：简洁明快、带有话题标签#和@符号，适当使用网络热词和表情符号，篇幅控制在140字以内';
+        break;
+      case 'douyin':
+        styleInstruction = '使用抖音风格：年轻化、有节奏感、多使用数字和对比，加入"老铁们"、"双击666"等直播用语，突出重点信息';
+        break;
+      case 'academic':
+        styleInstruction = '使用学术论文风格：严谨、客观、逻辑性强，使用规范的学术语言，包含关键词、研究方法、主要结论等要素';
+        break;
     }
 
     let languageInstruction = '';

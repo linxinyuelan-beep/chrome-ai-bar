@@ -551,6 +551,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
               <option value="bullet">要点式</option>
               <option value="paragraph">段落式</option>
               <option value="qa">问答式</option>
+              <option value="xiaohongshu">小红书风格</option>
+              <option value="zhihu">知乎风格</option>
+              <option value="weibo">微博风格</option>
+              <option value="douyin">抖音风格</option>
+              <option value="academic">学术论文风格</option>
             </select>
           </div>
           

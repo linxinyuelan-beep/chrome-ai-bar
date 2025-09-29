@@ -59,7 +59,7 @@ export interface SummaryResult {
 
 export interface SummarySettings {
   length: 'short' | 'medium' | 'long';
-  style: 'bullet' | 'paragraph' | 'qa';
+  style: 'bullet' | 'paragraph' | 'qa' | 'xiaohongshu' | 'zhihu' | 'weibo' | 'douyin' | 'academic';
   language: 'zh' | 'en' | 'auto';
 }
 
