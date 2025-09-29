@@ -109,7 +109,7 @@ export class ContentExtractor {
     });
     
     const result = {
-      title: '选中内容',
+      title: document.title || '未知页面',
       content: cleanedContent,
       url: window.location.href,
       type: 'general' as const,

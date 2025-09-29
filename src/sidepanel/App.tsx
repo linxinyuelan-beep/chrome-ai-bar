@@ -292,12 +292,14 @@ const App: React.FC = () => {
           });
 
           const result = {
+            title: document.title || '未知页面',
             content: cleanedContent,
             url: window.location.href,
             wordCount
           };
           
           console.log('🎉 [Injected Script] 选中内容提取完成:', {
+            标题: result.title,
             URL: result.url,
             内容长度: result.content.length,
             字数: result.wordCount,
@@ -346,7 +348,7 @@ const App: React.FC = () => {
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
-        title: '选中内容摘要',
+        title: extractedContent.title,
         content: summaryContent,
         url: extractedContent.url,
         timestamp: Date.now(),
@@ -470,9 +472,10 @@ const App: React.FC = () => {
       const defaultConfig = currentSettings.ai.configs.find(c => c.id === currentSettings.ai.defaultConfigId);
       console.log('Triggered selection summary with settings:', defaultConfig?.provider || 'none', 'API key length:', defaultConfig?.apiKey?.length || 0);
 
-      // 获取当前页面URL
+      // 获取当前页面URL和标题
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const currentUrl = tab.url || window.location.href;
+      const pageTitle = tab.title || '未知页面';
 
       // 清理内容
       const cleanedContent = selectedText.replace(/\s+/g, ' ').trim().substring(0, 50000);
@@ -504,7 +507,7 @@ const App: React.FC = () => {
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
-        title: '选中内容摘要',
+        title: pageTitle,
         content: summaryContent,
         url: currentUrl,
         timestamp: Date.now(),
