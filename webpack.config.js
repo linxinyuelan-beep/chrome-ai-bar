@@ -96,16 +96,17 @@ module.exports = (env, argv) => {
     devtool: isProduction ? false : 'cheap-module-source-map',
     optimization: {
       splitChunks: {
-        chunks(chunk) {
-          // Don't split background and content scripts
-          return !['service-worker', 'content-script'].includes(chunk.name);
-        },
         cacheGroups: {
-          vendor: {
+          sidepanelVendors: {
             test: /[\\/]node_modules[\\/]/,
             name: 'vendors',
-            chunks: 'all',
+            chunks(chunk) {
+              // 仅对侧边栏 React 应用启用代码分割，避免 content-script 动态加载
+              return chunk.name === 'sidepanel';
+            },
+            enforce: true,
           },
+          default: false,
         },
       },
     },

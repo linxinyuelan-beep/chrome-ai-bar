@@ -1,3 +1,5 @@
+import { Readability } from '@mozilla/readability';
+
 export interface ExtractedContent {
   title: string;
   content: string;
@@ -12,7 +14,7 @@ export class ContentExtractor {
   static async extractPageContent(): Promise<ExtractedContent> {
     console.log('🚀 ContentExtractor.extractPageContent 开始执行');
     
-    const title = document.title || '未知页面';
+    let title = document.title || '未知页面';
     const url = window.location.href;
     
     console.log('📄 页面基本信息:', { title, url });
@@ -27,23 +29,38 @@ export class ContentExtractor {
         内容预览: content.substring(0, 100) + '...'
       });
     } else {
-      console.log('🔍 非定制化网站，使用通用提取方法...');
-      // 使用通用的主要内容提取
-      content = this.extractMainContent();
-      console.log('📊 通用内容提取结果:', {
-        是否成功: !!content,
-        内容长度: content.length,
-        内容预览: content.substring(0, 100) + '...'
-      });
-      
-      // 如果通用方法也没有找到足够内容，使用备用方法
-      if (!content || content.length < 100) {
-        console.log('⚠️ 主要内容不足，使用备用提取方法...');
-        content = this.extractFallbackContent();
-        console.log('📊 备用内容提取结果:', {
+      console.log('� 尝试使用 Readability 提取内容...');
+      const readabilityResult = this.extractWithReadability();
+
+      if (readabilityResult && readabilityResult.content.length > 0) {
+        content = readabilityResult.content;
+        if (readabilityResult.title) {
+          title = readabilityResult.title;
+        }
+
+        console.log('✅ Readability 提取成功:', {
           内容长度: content.length,
           内容预览: content.substring(0, 100) + '...'
         });
+      } else {
+        console.log('⚠️ Readability 未能提取到有效内容，回退到通用算法...');
+        // 使用通用的主要内容提取
+        content = this.extractMainContent();
+        console.log('📊 通用内容提取结果:', {
+          是否成功: !!content,
+          内容长度: content.length,
+          内容预览: content.substring(0, 100) + '...'
+        });
+        
+        // 如果通用方法也没有找到足够内容，使用备用方法
+        if (!content || content.length < 100) {
+          console.log('⚠️ 主要内容不足，使用备用提取方法...');
+          content = this.extractFallbackContent();
+          console.log('📊 备用内容提取结果:', {
+            内容长度: content.length,
+            内容预览: content.substring(0, 100) + '...'
+          });
+        }
       }
     }
     
@@ -73,6 +90,34 @@ export class ContentExtractor {
     });
     
     return result;
+  }
+
+  private static extractWithReadability(): { title?: string; content: string } | null {
+    try {
+      const clonedDocument = document.cloneNode(true) as Document;
+      const reader = new Readability(clonedDocument);
+      const article = reader.parse();
+
+      if (!article) {
+        console.log('ℹ️ Readability 未返回解析结果');
+        return null;
+      }
+
+      const textContent = article.textContent?.trim();
+
+      if (!textContent) {
+        console.log('ℹ️ Readability 返回的正文为空');
+        return null;
+      }
+
+      return {
+        title: article.title || undefined,
+        content: textContent
+      };
+    } catch (error) {
+      console.error('❌ Readability 提取内容时发生异常:', error);
+      return null;
+    }
   }
 
   // 提取选中内容
@@ -135,7 +180,7 @@ export class ContentExtractor {
       // 语义化标签
       'main',
       'article',
-      '[role=\"main\"]',
+       '[role="main"]',
       
       // 常见的内容容器
       '.content',
