@@ -20,42 +20,42 @@ export interface GenerateImageOptions {
 }
 
 export class ImageGenerator {
-  // 预定义的模板 - 高度现在作为最大高度，支持自适应
+  // 预定义的模板 - 高分辨率版本，支持自适应高度
   static readonly TEMPLATES: ImageTemplate[] = [
     {
       id: 'modern',
       name: '简洁现代',
       description: '简洁的现代风格，适合商务分享',
       style: 'modern',
-      dimensions: { width: 800, height: 800 } // 增加最大高度
+      dimensions: { width: 1200, height: 1200 } // 提高到1200px宽度
     },
     {
       id: 'xiaohongshu',
       name: '小红书风格',
       description: '活泼可爱，适合生活分享',
       style: 'xiaohongshu',
-      dimensions: { width: 750, height: 1200 } // 增加最大高度
+      dimensions: { width: 1080, height: 1800 } // 标准小红书尺寸
     },
     {
       id: 'zhihu',
       name: '知乎风格',
       description: '专业理性，适合知识分享',
       style: 'zhihu',
-      dimensions: { width: 800, height: 900 } // 增加最大高度
+      dimensions: { width: 1200, height: 1350 } // 提高分辨率
     },
     {
       id: 'weibo',
       name: '微博风格',
       description: '简短精炼，适合快速分享',
       style: 'weibo',
-      dimensions: { width: 690, height: 800 } // 适中高度
+      dimensions: { width: 1080, height: 1200 } // 标准微博尺寸
     },
     {
       id: 'academic',
       name: '学术论文',
       description: '严谨专业，适合学术分享',
       style: 'academic',
-      dimensions: { width: 800, height: 1200 } // 增加最大高度
+      dimensions: { width: 1200, height: 1800 } // A4比例高分辨率
     }
   ];
 
@@ -117,30 +117,37 @@ export class ImageGenerator {
       // 调整容器高度为实际需要的高度
       container.style.height = `${actualHeight}px`;
 
-      // 生成canvas
+      // 生成canvas - 提高分辨率和质量
       const canvas = await html2canvas(container, {
         width: options.template.dimensions.width,
         height: actualHeight,
-        scale: 1, // 降低缩放避免内存问题
+        scale: window.devicePixelRatio || 2, // 使用设备像素比或2倍缩放提高清晰度
         backgroundColor: options.backgroundColor || '#ffffff',
         useCORS: true,
         allowTaint: false,
         foreignObjectRendering: false,
-        logging: true, // 开启日志用于调试
+        logging: false, // 关闭日志减少控制台输出
+        removeContainer: true, // 渲染后移除容器
+        imageTimeout: 15000, // 增加图片加载超时时间
         onclone: (clonedDoc) => {
-          // 确保克隆文档中的样式正确
+          // 确保克隆文档中的样式正确，并优化渲染质量
           const clonedContainer = clonedDoc.querySelector('div');
           if (clonedContainer) {
             clonedContainer.style.position = 'static';
             clonedContainer.style.left = 'auto';
             clonedContainer.style.top = 'auto';
             clonedContainer.style.visibility = 'visible';
+            // 添加高质量渲染样式
+            clonedContainer.style.imageRendering = 'pixelated';
+            clonedContainer.style.transform = 'translateZ(0)';
+            clonedContainer.style.backfaceVisibility = 'hidden';
           }
         }
       });
       
-      // 转换为数据URL
-      const dataUrl = canvas.toDataURL(`image/${options.format}`, options.quality);
+      // 转换为数据URL - 使用最高质量设置
+      const highQuality = Math.max(options.quality, 0.95); // 确保至少95%质量
+      const dataUrl = canvas.toDataURL(`image/${options.format}`, highQuality);
       
       return dataUrl;
     } finally {
@@ -157,11 +164,15 @@ export class ImageGenerator {
     template: ImageTemplate,
     summary: SummaryResult
   ): void {
-    // 基础样式 - 确保元素可见且有固定尺寸
-    container.style.fontFamily = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-    container.style.fontSize = '16px';
+    // 基础样式 - 高分辨率优化
+    const scaleFactor = template.dimensions.width / 800; // 基于800px计算缩放比例
+    const baseFontSize = Math.round(16 * scaleFactor);
+    const basePadding = Math.round(40 * scaleFactor);
+    
+    container.style.fontFamily = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+    container.style.fontSize = `${baseFontSize}px`;
     container.style.lineHeight = '1.6';
-    container.style.padding = '40px';
+    container.style.padding = `${basePadding}px`;
     container.style.boxSizing = 'border-box';
     container.style.backgroundColor = '#ffffff';
     container.style.color = '#333333';
@@ -173,49 +184,78 @@ export class ImageGenerator {
     container.style.left = '-9999px';
     container.style.top = '0px';
     container.style.width = `${template.dimensions.width}px`;
-    container.style.minHeight = `${Math.min(400, template.dimensions.height)}px`;
+    container.style.minHeight = `${Math.min(400 * scaleFactor, template.dimensions.height)}px`;
     container.style.maxHeight = `${template.dimensions.height}px`;
+    // 高质量渲染优化
+    container.style.textRendering = 'optimizeLegibility';
+    // 使用字符串设置私有样式属性
+    (container.style as any).webkitFontSmoothing = 'antialiased';
+    (container.style as any).mozOsxFontSmoothing = 'grayscale';
     
     switch (template.style) {
       case 'modern':
-        this.applyModernStyle(container, summary);
+        this.applyModernStyle(container, summary, template);
         break;
       case 'xiaohongshu':
-        this.applyXiaohongshuStyle(container, summary);
+        this.applyXiaohongshuStyle(container, summary, template);
         break;
       case 'zhihu':
-        this.applyZhihuStyle(container, summary);
+        this.applyZhihuStyle(container, summary, template);
         break;
       case 'weibo':
-        this.applyWeiboStyle(container, summary);
+        this.applyWeiboStyle(container, summary, template);
         break;
       case 'academic':
-        this.applyAcademicStyle(container, summary);
+        this.applyAcademicStyle(container, summary, template);
         break;
     }
   }
 
   /**
+   * 计算基于模板尺寸的缩放因子和样式值
+   */
+  private static getScaledStyles(template: ImageTemplate) {
+    const scaleFactor = template.dimensions.width / 800; // 基于800px计算缩放比例
+    return {
+      scaleFactor,
+      fontSize: {
+        title: Math.round(28 * scaleFactor),
+        content: Math.round(16 * scaleFactor),
+        meta: Math.round(14 * scaleFactor),
+        small: Math.round(12 * scaleFactor)
+      },
+      spacing: {
+        padding: Math.round(30 * scaleFactor),
+        margin: Math.round(20 * scaleFactor),
+        smallMargin: Math.round(15 * scaleFactor)
+      },
+      borderRadius: Math.round(20 * scaleFactor)
+    };
+  }
+
+  /**
    * 现代简洁风格
    */
-  private static applyModernStyle(container: HTMLElement, summary: SummaryResult): void {
+  private static applyModernStyle(container: HTMLElement, summary: SummaryResult, template: ImageTemplate): void {
+    const styles = this.getScaledStyles(template);
+    
     // 使用简化的HTML结构，自适应高度
     container.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
     container.style.color = 'white';
-    container.style.padding = '30px';
-    container.style.borderRadius = '20px';
+    container.style.padding = `${styles.spacing.padding}px`;
+    container.style.borderRadius = `${styles.borderRadius}px`;
     container.style.display = 'block'; // 改为block布局，不使用flex
     
     container.innerHTML = `
-      <div style="margin-bottom: 30px;">
-        <h1 style="font-size: 28px; font-weight: 700; margin: 0 0 20px 0; line-height: 1.3; color: white;">
+      <div style="margin-bottom: ${styles.spacing.padding}px;">
+        <h1 style="font-size: ${styles.fontSize.title}px; font-weight: 700; margin: 0 0 ${styles.spacing.margin}px 0; line-height: 1.3; color: white;">
           ${summary.title}
         </h1>
-        <div style="font-size: 16px; line-height: 1.4; color: white; opacity: 0.95; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
-          ${this.formatContent(summary.content, 600)}
+        <div style="font-size: ${styles.fontSize.content}px; line-height: 1.4; color: white; opacity: 0.95; margin-bottom: ${styles.spacing.margin}px; word-wrap: break-word; overflow-wrap: break-word;">
+          ${this.formatContent(summary.content, 600 * styles.scaleFactor)}
         </div>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: white; opacity: 0.8; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: ${styles.fontSize.meta}px; color: white; opacity: 0.8; padding-top: ${styles.spacing.margin}px; border-top: 1px solid rgba(255,255,255,0.2);">
         <span>智能摘要助手</span>
         <span>${new Date(summary.timestamp).toLocaleDateString('zh-CN')}</span>
       </div>
@@ -225,28 +265,30 @@ export class ImageGenerator {
   /**
    * 小红书风格
    */
-  private static applyXiaohongshuStyle(container: HTMLElement, summary: SummaryResult): void {
+  private static applyXiaohongshuStyle(container: HTMLElement, summary: SummaryResult, template: ImageTemplate): void {
+    const styles = this.getScaledStyles(template);
+    
     container.style.background = 'linear-gradient(45deg, #ff9a9e 0%, #fecfef 100%)';
-    container.style.padding = '20px';
+    container.style.padding = `${styles.spacing.margin}px`;
     
     // 创建内部白色卡片，自适应高度
     const card = document.createElement('div');
     card.style.background = 'white';
-    card.style.padding = '30px';
-    card.style.borderRadius = '25px';
-    card.style.minHeight = '300px'; // 最小高度
+    card.style.padding = `${styles.spacing.padding}px`;
+    card.style.borderRadius = `${Math.round(25 * styles.scaleFactor)}px`;
+    card.style.minHeight = `${Math.round(300 * styles.scaleFactor)}px`; // 最小高度
     card.style.display = 'block';
     
     card.innerHTML = `
-      <div style="margin-bottom: 30px;">
-        <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 20px 0; color: #e91e63;">
+      <div style="margin-bottom: ${styles.spacing.padding}px;">
+        <h1 style="font-size: ${Math.round(24 * styles.scaleFactor)}px; font-weight: 700; margin: 0 0 ${styles.spacing.margin}px 0; color: #e91e63;">
           ✨ ${summary.title}
         </h1>
-        <div style="font-size: 16px; line-height: 1.4; color: #333; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
-          ${this.formatContent(summary.content, 500)} 💫
+        <div style="font-size: ${styles.fontSize.content}px; line-height: 1.4; color: #333; margin-bottom: ${styles.spacing.margin}px; word-wrap: break-word; overflow-wrap: break-word;">
+          ${this.formatContent(summary.content, 500 * styles.scaleFactor)} 💫
         </div>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 2px solid #fce4ec; font-size: 13px; color: #e91e63;">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: ${styles.spacing.margin}px; border-top: 2px solid #fce4ec; font-size: ${Math.round(13 * styles.scaleFactor)}px; color: #e91e63;">
         <span style="font-weight: 600;">📱 智能摘要助手</span>
         <span>#智能摘要 #AI助手</span>
       </div>
@@ -258,28 +300,30 @@ export class ImageGenerator {
   /**
    * 知乎风格
    */
-  private static applyZhihuStyle(container: HTMLElement, summary: SummaryResult): void {
+  private static applyZhihuStyle(container: HTMLElement, summary: SummaryResult, template: ImageTemplate): void {
+    const styles = this.getScaledStyles(template);
+    
     container.style.backgroundColor = '#f6f6f6';
-    container.style.padding = '20px';
+    container.style.padding = `${styles.spacing.margin}px`;
     
     const card = document.createElement('div');
     card.style.background = 'white';
-    card.style.padding = '35px';
-    card.style.borderRadius = '8px';
-    card.style.borderLeft = '4px solid #0084ff';
-    card.style.minHeight = '300px'; // 最小高度
+    card.style.padding = `${Math.round(35 * styles.scaleFactor)}px`;
+    card.style.borderRadius = `${Math.round(8 * styles.scaleFactor)}px`;
+    card.style.borderLeft = `${Math.round(4 * styles.scaleFactor)}px solid #0084ff`;
+    card.style.minHeight = `${Math.round(300 * styles.scaleFactor)}px`; // 最小高度
     card.style.display = 'block';
     
     card.innerHTML = `
-      <div style="margin-bottom: 30px;">
-        <h1 style="font-size: 22px; font-weight: 600; margin: 0 0 20px 0; color: #1a1a1a; line-height: 1.4;">
+      <div style="margin-bottom: ${styles.spacing.padding}px;">
+        <h1 style="font-size: ${Math.round(22 * styles.scaleFactor)}px; font-weight: 600; margin: 0 0 ${styles.spacing.margin}px 0; color: #1a1a1a; line-height: 1.4;">
           ${summary.title}
         </h1>
-        <div style="font-size: 15px; line-height: 1.4; color: #444; margin-bottom: 20px; text-align: justify; word-wrap: break-word; overflow-wrap: break-word;">
-          ${this.formatContent(summary.content, 650)}
+        <div style="font-size: ${Math.round(15 * styles.scaleFactor)}px; line-height: 1.4; color: #444; margin-bottom: ${styles.spacing.margin}px; text-align: justify; word-wrap: break-word; overflow-wrap: break-word;">
+          ${this.formatContent(summary.content, 650 * styles.scaleFactor)}
         </div>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 1px solid #e6e6e6; font-size: 13px; color: #8590a6;">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: ${styles.spacing.margin}px; border-top: 1px solid #e6e6e6; font-size: ${Math.round(13 * styles.scaleFactor)}px; color: #8590a6;">
         <span><span style="color: #0084ff; font-weight: 500;">智能摘要助手</span> · ${summary.wordCount} 字</span>
         <span>${new Date(summary.timestamp).toLocaleDateString('zh-CN')}</span>
       </div>
@@ -291,36 +335,38 @@ export class ImageGenerator {
   /**
    * 微博风格
    */
-  private static applyWeiboStyle(container: HTMLElement, summary: SummaryResult): void {
+  private static applyWeiboStyle(container: HTMLElement, summary: SummaryResult, template: ImageTemplate): void {
+    const styles = this.getScaledStyles(template);
+    
     container.style.background = 'linear-gradient(45deg, #ff6b6b, #feca57)';
-    container.style.padding = '30px';
-    container.style.borderRadius = '15px';
+    container.style.padding = `${styles.spacing.padding}px`;
+    container.style.borderRadius = `${Math.round(15 * styles.scaleFactor)}px`;
     container.style.color = 'white';
     container.style.textShadow = '0 1px 2px rgba(0,0,0,0.1)';
-    container.style.minHeight = '350px';
+    container.style.minHeight = `${Math.round(350 * styles.scaleFactor)}px`;
     
     container.innerHTML = `
-      <div style="margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; margin-bottom: 20px;">
-          <div style="width: 50px; height: 50px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 15px;">🤖</div>
+      <div style="margin-bottom: ${styles.spacing.margin}px;">
+        <div style="display: flex; align-items: center; margin-bottom: ${styles.spacing.margin}px;">
+          <div style="width: ${Math.round(50 * styles.scaleFactor)}px; height: ${Math.round(50 * styles.scaleFactor)}px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: ${Math.round(20 * styles.scaleFactor)}px; margin-right: ${styles.spacing.smallMargin}px;">🤖</div>
           <div>
-            <div style="font-weight: 600; font-size: 16px;">智能摘要助手</div>
-            <div style="font-size: 12px; opacity: 0.8;">刚刚</div>
+            <div style="font-weight: 600; font-size: ${styles.fontSize.content}px;">智能摘要助手</div>
+            <div style="font-size: ${styles.fontSize.small}px; opacity: 0.8;">刚刚</div>
           </div>
         </div>
         
-        <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 15px 0; line-height: 1.4;">
+        <h2 style="font-size: ${Math.round(18 * styles.scaleFactor)}px; font-weight: 600; margin: 0 0 ${styles.spacing.smallMargin}px 0; line-height: 1.4;">
           #${summary.title}#
         </h2>
         
-        <div style="font-size: 14px; line-height: 1.3; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
-          ${this.formatContent(summary.content, 400)} 
+        <div style="font-size: ${styles.fontSize.meta}px; line-height: 1.3; margin-bottom: ${styles.spacing.margin}px; word-wrap: break-word; overflow-wrap: break-word;">
+          ${this.formatContent(summary.content, 400 * styles.scaleFactor)} 
           
           #AI摘要 #智能助手 #效率工具
         </div>
       </div>
       
-      <div style="font-size: 12px; opacity: 0.8; text-align: right; margin-top: auto;">
+      <div style="font-size: ${styles.fontSize.small}px; opacity: 0.8; text-align: right; margin-top: auto;">
         ${new Date(summary.timestamp).toLocaleString('zh-CN')}
       </div>
     `;
@@ -329,35 +375,37 @@ export class ImageGenerator {
   /**
    * 学术论文风格
    */
-  private static applyAcademicStyle(container: HTMLElement, summary: SummaryResult): void {
+  private static applyAcademicStyle(container: HTMLElement, summary: SummaryResult, template: ImageTemplate): void {
+    const styles = this.getScaledStyles(template);
+    
     container.style.backgroundColor = '#fafafa';
-    container.style.padding = '20px';
+    container.style.padding = `${styles.spacing.margin}px`;
     
     const paper = document.createElement('div');
     paper.style.background = 'white';
-    paper.style.padding = '40px';
+    paper.style.padding = `${Math.round(40 * styles.scaleFactor)}px`;
     paper.style.border = '1px solid #ddd';
     paper.style.fontFamily = '"Times New Roman", serif';
-    paper.style.minHeight = '400px';
+    paper.style.minHeight = `${Math.round(400 * styles.scaleFactor)}px`;
     
     paper.innerHTML = `
-      <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #333;">
-        <h1 style="font-size: 20px; font-weight: 600; margin: 0; color: #333; text-transform: uppercase; letter-spacing: 1px;">
+      <div style="text-align: center; margin-bottom: ${styles.spacing.padding}px; padding-bottom: ${styles.spacing.margin}px; border-bottom: 2px solid #333;">
+        <h1 style="font-size: ${Math.round(20 * styles.scaleFactor)}px; font-weight: 600; margin: 0; color: #333; text-transform: uppercase; letter-spacing: 1px;">
           Abstract Summary
         </h1>
       </div>
       
-      <div style="margin-bottom: 30px;">
-        <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 15px 0; color: #333; line-height: 1.3;">
+      <div style="margin-bottom: ${styles.spacing.padding}px;">
+        <h2 style="font-size: ${Math.round(18 * styles.scaleFactor)}px; font-weight: 600; margin: 0 0 ${styles.spacing.smallMargin}px 0; color: #333; line-height: 1.3;">
           ${summary.title}
         </h2>
         
-        <div style="font-size: 14px; line-height: 1.4; color: #444; text-align: justify; text-indent: 2em; margin-bottom: 20px; word-wrap: break-word; overflow-wrap: break-word;">
-          ${this.formatContent(summary.content, 700)}
+        <div style="font-size: ${styles.fontSize.meta}px; line-height: 1.4; color: #444; text-align: justify; text-indent: ${Math.round(2 * styles.scaleFactor)}em; margin-bottom: ${styles.spacing.margin}px; word-wrap: break-word; overflow-wrap: break-word;">
+          ${this.formatContent(summary.content, 700 * styles.scaleFactor)}
         </div>
       </div>
       
-      <div style="padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; display: flex; justify-content: space-between;">
+      <div style="padding-top: ${styles.spacing.margin}px; border-top: 1px solid #ddd; font-size: ${styles.fontSize.small}px; color: #666; display: flex; justify-content: space-between;">
         <div><strong>Generated by:</strong> AI Summary Assistant</div>
         <div><strong>Date:</strong> ${new Date(summary.timestamp).toLocaleDateString('en-US')}</div>
       </div>

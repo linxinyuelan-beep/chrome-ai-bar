@@ -27,8 +27,8 @@ const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
       
       const options: GenerateImageOptions = {
         template: selectedTemplate,
-        quality: 0.9,
-        format: 'png',
+        quality: 1.0, // 使用最高质量
+        format: 'png', // PNG格式无损压缩
         backgroundColor: '#ffffff'
       };
 
