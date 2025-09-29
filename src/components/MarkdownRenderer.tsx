@@ -51,19 +51,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
     blockquote: CustomBlockquote,
   };
 
-  // 清理内容中多余的换行符和空白
-  const cleanContent = content
-    // 移除列表项前后多余的换行符
-    .replace(/\n\s*\n(\s*[-*+]\s)/g, '\n$1')
-    // 移除列表项之间多余的空行
-    .replace(/(\s*[-*+]\s[^\n]+)\n\s*\n(\s*[-*+]\s)/g, '$1\n$2')
-    // 移除行末的多余空格
-    .replace(/[ \t]+$/gm, '')
-    // 规范化多个连续的换行符为最多两个
-    .replace(/\n{3,}/g, '\n\n')
-    // 移除开头和结尾的空白
-    .trim();
-
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
@@ -71,7 +58,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className 
         rehypePlugins={[rehypeRaw]}
         components={components}
       >
-        {cleanContent}
+        {content}
       </ReactMarkdown>
     </div>
   );

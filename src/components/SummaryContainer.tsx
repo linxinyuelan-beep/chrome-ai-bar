@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { Copy, Save, MessageSquare } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Copy, Save, MessageSquare, Image } from 'lucide-react';
 import { SummaryResult } from '../types';
 import MarkdownRenderer from './MarkdownRenderer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
+import ImagePreviewModal from './ImagePreviewModal';
 
 interface SummaryContainerProps {
   summary: SummaryResult;
@@ -17,6 +18,9 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
   streamingContent,
   isGenerating 
 }) => {
+  // 图片预览模态框状态
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+
   // 自动滚动Hook，仅在生成摘要时启用
   const { scrollRef, scrollToBottom, isAutoScrolling } = useAutoScroll({
     enabled: isGenerating,
@@ -24,6 +28,7 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
     behavior: 'smooth',
     threshold: 20
   });
+  
   const handleCopy = async () => {
     try {
       const contentToCopy = isGenerating && streamingContent ? streamingContent : summary.content;
@@ -36,6 +41,11 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
 
   const handleSave = async () => {
     console.log('Save summary:', summary);
+  };
+
+  // 生成分享图片
+  const handleGenerateImage = () => {
+    setIsImageModalOpen(true);
   };
 
   const formatDate = (timestamp: number) => {
@@ -60,6 +70,9 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
           <button className="icon-btn" onClick={handleSave} title="保存">
             <Save size={16} />
           </button>
+          <button className="icon-btn" onClick={handleGenerateImage} title="生成分享图片">
+            <Image size={16} />
+          </button>
         </div>
       </div>
       
@@ -80,6 +93,13 @@ const SummaryContainer: React.FC<SummaryContainerProps> = ({
         <MessageSquare size={18} />
         开始对话
       </button>
+
+      {/* 图片预览模态框 */}
+      <ImagePreviewModal
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+        summary={summary}
+      />
     </div>
   );
 };
