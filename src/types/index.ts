@@ -55,6 +55,9 @@ export interface SummaryResult {
   timestamp: number;
   wordCount: number;
   type: 'page' | 'selection';
+  aiConfigId?: string; // 使用的AI配置ID
+  aiProvider?: string; // AI提供商名称
+  aiModel?: string; // AI模型名称
 }
 
 // 自定义风格
@@ -88,6 +91,9 @@ export interface ChatSession {
   messages: ChatMessage[];
   context?: string; // 摘要内容作为上下文
   timestamp: number;
+  currentAIConfigId?: string; // 当前使用的AI配置ID
+  aiProvider?: string; // 当前AI提供商名称
+  aiModel?: string; // 当前AI模型名称
 }
 
 // 快捷回复相关类型

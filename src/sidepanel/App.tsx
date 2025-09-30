@@ -200,6 +200,9 @@ const App: React.FC = () => {
         }
       );
 
+      // 获取当前使用的AI配置
+      const currentAIConfig = settings.ai.configs.find(c => c.id === settings.ai.defaultConfigId);
+
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
@@ -208,7 +211,10 @@ const App: React.FC = () => {
         url: extractedContent.url,
         timestamp: Date.now(),
         wordCount: extractedContent.wordCount,
-        type: 'page'
+        type: 'page',
+        aiConfigId: currentAIConfig?.id,
+        aiProvider: currentAIConfig?.provider,
+        aiModel: currentAIConfig?.model
       };
 
       // 保存到历史记录
@@ -346,6 +352,9 @@ const App: React.FC = () => {
         }
       );
 
+      // 获取当前使用的AI配置
+      const currentAIConfig = settings.ai.configs.find(c => c.id === settings.ai.defaultConfigId);
+
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
@@ -354,7 +363,10 @@ const App: React.FC = () => {
         url: extractedContent.url,
         timestamp: Date.now(),
         wordCount: extractedContent.wordCount,
-        type: 'selection'
+        type: 'selection',
+        aiConfigId: currentAIConfig?.id,
+        aiProvider: currentAIConfig?.provider,
+        aiModel: currentAIConfig?.model
       };
 
       // 保存到历史记录
@@ -430,6 +442,9 @@ const App: React.FC = () => {
         }
       );
 
+      // 获取当前使用的AI配置
+      const currentAIConfig = currentSettings.ai.configs.find(c => c.id === currentSettings.ai.defaultConfigId);
+
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
@@ -438,7 +453,10 @@ const App: React.FC = () => {
         url: extractedContent.url,
         timestamp: Date.now(),
         wordCount: extractedContent.wordCount,
-        type: 'page'
+        type: 'page',
+        aiConfigId: currentAIConfig?.id,
+        aiProvider: currentAIConfig?.provider,
+        aiModel: currentAIConfig?.model
       };
 
       // 保存到历史记录
@@ -505,6 +523,9 @@ const App: React.FC = () => {
         }
       );
 
+      // 获取当前使用的AI配置
+      const currentAIConfig = currentSettings.ai.configs.find(c => c.id === currentSettings.ai.defaultConfigId);
+
       // 创建摘要结果
       const summary: SummaryResult = {
         id: Date.now().toString(),
@@ -513,7 +534,10 @@ const App: React.FC = () => {
         url: currentUrl,
         timestamp: Date.now(),
         wordCount: wordCount,
-        type: 'selection'
+        type: 'selection',
+        aiConfigId: currentAIConfig?.id,
+        aiProvider: currentAIConfig?.provider,
+        aiModel: currentAIConfig?.model
       };
 
       // 保存到历史记录
@@ -539,6 +563,106 @@ const App: React.FC = () => {
   // 打开历史记录
   const handleOpenHistory = () => {
     setCurrentView('history');
+  };
+
+  // 使用指定的AI配置重新生成摘要
+  const handleRegenerateWithModel = async (configId: string) => {
+    if (!currentSummary) return;
+
+    setIsLoading(true);
+    setCurrentView('loading');
+    setError(null);
+
+    try {
+      // 获取当前活动标签页
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      // 创建临时settings，使用指定的AI配置
+      const tempSettings = {
+        ...settings,
+        ai: {
+          ...settings.ai,
+          defaultConfigId: configId
+        }
+      };
+
+      // 创建AI服务
+      const aiService = AIService.fromMultiConfig(tempSettings.ai);
+      if (!aiService) {
+        throw new Error('无法创建AI服务');
+      }
+
+      let content = '';
+      let extractedData = null;
+
+      // 根据摘要类型获取内容
+      if (currentSummary.type === 'page' && tab.id) {
+        // 页面摘要：重新提取页面内容
+        const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PAGE_CONTENT' });
+        if (response?.success) {
+          extractedData = response.data;
+          content = extractedData.content;
+        }
+      } else if (currentSummary.type === 'selection' && tab.id) {
+        // 选中内容摘要：重新获取选中内容
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            const selection = window.getSelection();
+            return selection?.toString().trim() || '';
+          }
+        });
+        content = results[0]?.result || '';
+      }
+
+      if (!content) {
+        throw new Error('无法获取内容');
+      }
+
+      // 重置流式摘要内容
+      setStreamingSummary('');
+
+      // 生成新摘要
+      const summaryContent = await aiService.generateSummaryStream(
+        content,
+        settings.summary,
+        currentSummary.type,
+        (chunk: string) => {
+          setStreamingSummary(prev => prev + chunk);
+        }
+      );
+
+      // 获取使用的AI配置信息
+      const usedAIConfig = settings.ai.configs.find(c => c.id === configId);
+
+      // 创建新的摘要结果
+      const newSummary: SummaryResult = {
+        ...currentSummary,
+        id: Date.now().toString(),
+        content: summaryContent,
+        timestamp: Date.now(),
+        wordCount: extractedData?.wordCount || currentSummary.wordCount,
+        aiConfigId: usedAIConfig?.id,
+        aiProvider: usedAIConfig?.provider,
+        aiModel: usedAIConfig?.model
+      };
+
+      // 保存到历史记录
+      const storageManager = new StorageManager();
+      await storageManager.saveSummary(newSummary);
+
+      setCurrentSummary(newSummary);
+      setCurrentView('summary');
+      setStreamingSummary('');
+    } catch (err) {
+      console.error('重新生成摘要失败:', err);
+      const errorMessage = err instanceof Error ? err.message : '重新生成摘要失败';
+      setError(errorMessage);
+      setCurrentView('error');
+      setStreamingSummary('');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 关闭面板
@@ -653,12 +777,18 @@ const App: React.FC = () => {
         ? `关于"${currentSummary.title.substring(0, 30)}..."的对话` 
         : `关于"${currentSummary.title}"的对话`;
 
+      // 获取当前默认AI配置
+      const currentAIConfig = settings.ai.configs.find(c => c.id === settings.ai.defaultConfigId);
+
       const newChatSession: ChatSession = {
         id: Date.now().toString(),
         title: chatTitle,
         messages: [summaryMessage], // 将摘要作为第一条消息
         context: currentSummary.content,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        currentAIConfigId: currentAIConfig?.id,
+        aiProvider: currentAIConfig?.provider,
+        aiModel: currentAIConfig?.model
       };
       
       // 保存新的聊天会话到历史记录
@@ -718,6 +848,8 @@ const App: React.FC = () => {
             onStartChat={handleStartChat}
             streamingContent={streamingSummary}
             isGenerating={isLoading}
+            aiConfig={settings.ai}
+            onRegenerateWithModel={handleRegenerateWithModel}
           />
         )}
         

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Trash2, ArrowLeft, Zap } from 'lucide-react';
+import { Send, Trash2, ArrowLeft, Zap, RefreshCw } from 'lucide-react';
 import { ChatSession, ChatMessage, MultiAIConfig, QuickReplySettings } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import { StorageManager } from '../utils/storage-manager';
@@ -27,6 +27,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [showQuickReplies, setShowQuickReplies] = useState(true);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
   // 自动滚动Hook
   const { scrollRef, scrollToBottom, isAutoScrolling, resetAutoScroll } = useAutoScroll({
@@ -52,7 +53,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     // 如果有上下文（摘要内容），基于摘要生成标题
     if (context) {
       const contextWords = context.split(' ').slice(0, 8).join(' ');
-      return `关于"${contextWords}${context.length > 50 ? '...' : ''}"的对话`;
+      return `关于“${contextWords}${context.length > 50 ? '...' : ''}”的对话`;
     }
     
     // 查找第一条用户消息
@@ -61,10 +62,51 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       const messagePreview = firstUserMessage.content.length > 20 
         ? firstUserMessage.content.substring(0, 20) + '...' 
         : firstUserMessage.content;
-      return `关于"${messagePreview}"的对话`;
+      return `关于“${messagePreview}”的对话`;
     }
     
     return '新的对话';
+  };
+
+  // 获取当前使用的模型信息
+  const getCurrentModelInfo = () => {
+    if (session.aiProvider && session.aiModel) {
+      return `${session.aiProvider} - ${session.aiModel}`;
+    }
+    // 如果没有记录，使用当前默认配置
+    const defaultConfig = aiConfig.configs.find(c => c.id === aiConfig.defaultConfigId);
+    if (defaultConfig) {
+      return `${defaultConfig.provider} - ${defaultConfig.model}`;
+    }
+    return '未知模型';
+  };
+
+  // 获取可用的其他模型
+  const getAvailableModels = () => {
+    if (!aiConfig?.configs) return [];
+    const currentConfigId = session.currentAIConfigId || aiConfig.defaultConfigId;
+    return aiConfig.configs.filter(config => 
+      config.id !== currentConfigId && config.apiKey
+    );
+  };
+
+  // 切换模型
+  const handleSwitchModel = async (configId: string) => {
+    setIsModelMenuOpen(false);
+    
+    const newConfig = aiConfig.configs.find(c => c.id === configId);
+    if (!newConfig) return;
+
+    // 更新session的AI配置信息
+    const updatedSession = {
+      ...session,
+      currentAIConfigId: newConfig.id,
+      aiProvider: newConfig.provider,
+      aiModel: newConfig.model
+    };
+
+    onUpdateSession(updatedSession);
+    await saveChatSession(updatedSession);
   };
 
   const handleSendMessage = async () => {
@@ -90,8 +132,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     setIsLoading(true);
 
     try {
-      // 使用AI服务生成回复（流式）
-      const aiService = AIService.fromMultiConfig(aiConfig);
+      // 使用当前session的AI配置，如果没有则使用默认配置
+      const currentConfigId = session.currentAIConfigId || aiConfig.defaultConfigId;
+      const tempAIConfig = {
+        ...aiConfig,
+        defaultConfigId: currentConfigId
+      };
+      
+      const aiService = AIService.fromMultiConfig(tempAIConfig);
       if (!aiService) {
         throw new Error('AI配置不可用，请检查设置');
       }
@@ -190,8 +238,14 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
     setShowQuickReplies(false);
 
     try {
-      // 使用AI服务生成回复（流式）
-      const aiService = AIService.fromMultiConfig(aiConfig);
+      // 使用当前session的AI配置，如果没有则使用默认配置
+      const currentConfigId = session.currentAIConfigId || aiConfig.defaultConfigId;
+      const tempAIConfig = {
+        ...aiConfig,
+        defaultConfigId: currentConfigId
+      };
+      
+      const aiService = AIService.fromMultiConfig(tempAIConfig);
       if (!aiService) {
         throw new Error('AI配置不可用，请检查设置');
       }
@@ -276,6 +330,42 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
         <button className="icon-btn" onClick={handleClearChatWithScroll} title="清空对话">
           <Trash2 size={16} />
         </button>
+      </div>
+      
+      {/* AI模型信息显示 */}
+      <div className="chat-model-info">
+        <span className="model-label">当前模型：</span>
+        <span className="model-name">{getCurrentModelInfo()}</span>
+        {getAvailableModels().length > 0 && (
+          <div className="model-switch-container">
+            <button 
+              className="model-switch-btn"
+              onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+              disabled={isLoading}
+              title="切换模型"
+            >
+              <RefreshCw size={14} />
+              <span style={{ marginLeft: '4px' }}>切换模型</span>
+            </button>
+            {isModelMenuOpen && (
+              <div className="model-menu">
+                <div className="model-menu-header">选择模型</div>
+                {getAvailableModels().map(config => (
+                  <button
+                    key={config.id}
+                    className="model-menu-item"
+                    onClick={() => handleSwitchModel(config.id)}
+                  >
+                    <div className="model-menu-item-name">{config.name}</div>
+                    <div className="model-menu-item-detail">
+                      {config.provider} - {config.model}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
       <div className="chat-messages" ref={scrollRef}>

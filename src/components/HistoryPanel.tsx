@@ -197,7 +197,7 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
                       <div className="item-meta">
                         <span>{formatDate(summary.timestamp)}</span>
                         <span>{summary.wordCount} 字</span>
-                        <span className={`type-badge ${summary.type}`}>
+                        <span className={`type-badge`}>
                           {summary.type === 'page' ? '页面' : '选中'}
                         </span>
                       </div>
