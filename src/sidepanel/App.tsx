@@ -24,7 +24,8 @@ const App: React.FC = () => {
     summary: {
       length: 'medium',
       style: 'bullet',
-      language: 'auto'
+      language: 'auto',
+      customStyles: []
     },
     quickReply: {
       enabled: true,

@@ -57,10 +57,21 @@ export interface SummaryResult {
   type: 'page' | 'selection';
 }
 
+// 自定义风格
+export interface CustomStyle {
+  id: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SummarySettings {
   length: 'short' | 'medium' | 'long';
-  style: 'bullet' | 'paragraph' | 'qa' | 'xiaohongshu' | 'zhihu' | 'weibo' | 'douyin' | 'academic';
+  style: string; // 内置风格或自定义风格ID
   language: 'zh' | 'en' | 'auto';
+  customStyles: CustomStyle[]; // 自定义风格列表
 }
 
 // 聊天相关类型

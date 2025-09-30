@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Loader, Plus, Edit2, Trash2, Copy, Settings, Zap } from 'lucide-react';
-import { AppSettings, AIProvider, APIValidationStatus, AIProviderConfig } from '../types/index';
+import { AppSettings, AIProvider, APIValidationStatus, AIProviderConfig, CustomStyle } from '../types/index';
 import { AIService } from '../utils/ai-service';
 import { StorageManager } from '../utils/storage-manager';
 
@@ -18,6 +18,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AIProviderConfig | null>(null);
   const [storageManager] = useState(() => new StorageManager());
+
+  // 自定义风格表单状态
+  const [showStyleForm, setShowStyleForm] = useState(false);
+  const [editingStyle, setEditingStyle] = useState<CustomStyle | null>(null);
+  const [styleForm, setStyleForm] = useState({
+    name: '',
+    description: ''
+  });
 
   const aiProviders: AIProvider[] = [
     { 
@@ -67,7 +75,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
       summary: {
         length: 'medium',
         style: 'bullet',
-        language: 'auto'
+        language: 'auto',
+        customStyles: []
       },
       quickReply: {
         enabled: true,
@@ -94,6 +103,83 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
       ...prev,
       ui: { ...prev.ui, [key]: value }
     }));
+  };
+
+  // ===== 自定义风格管理方法 =====
+
+  // 生成唯一风格ID
+  const generateStyleId = (): string => {
+    return `style_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  };
+
+  // 处理风格表单提交
+  const handleStyleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingStyle) {
+      // 更新现有风格
+      const updatedStyles = localSettings.summary.customStyles.map(s => 
+        s.id === editingStyle.id 
+          ? { ...s, name: styleForm.name, description: styleForm.description, updatedAt: Date.now() }
+          : s
+      );
+      setLocalSettings(prev => ({
+        ...prev,
+        summary: { ...prev.summary, customStyles: updatedStyles }
+      }));
+    } else {
+      // 添加新风格
+      const newStyle: CustomStyle = {
+        id: generateStyleId(),
+        name: styleForm.name,
+        description: styleForm.description,
+        isDefault: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      setLocalSettings(prev => ({
+        ...prev,
+        summary: { 
+          ...prev.summary, 
+          customStyles: [...(prev.summary.customStyles || []), newStyle]
+        }
+      }));
+    }
+    
+    resetStyleForm();
+  };
+
+  // 重置风格表单
+  const resetStyleForm = () => {
+    setStyleForm({ name: '', description: '' });
+    setShowStyleForm(false);
+    setEditingStyle(null);
+  };
+
+  // 编辑风格
+  const handleEditStyle = (style: CustomStyle) => {
+    setStyleForm({
+      name: style.name,
+      description: style.description
+    });
+    setEditingStyle(style);
+    setShowStyleForm(true);
+  };
+
+  // 删除风格
+  const handleDeleteStyle = (styleId: string) => {
+    if (confirm('确定要删除这个自定义风格吗？')) {
+      const updatedStyles = localSettings.summary.customStyles.filter(s => s.id !== styleId);
+      setLocalSettings(prev => ({
+        ...prev,
+        summary: { 
+          ...prev.summary, 
+          customStyles: updatedStyles,
+          // 如果当前选中的风格被删除，切换到默认风格
+          style: prev.summary.style === styleId ? 'bullet' : prev.summary.style
+        }
+      }));
+    }
   };
 
   // 获取当前选中的AI提供商信息
@@ -542,22 +628,128 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave, onClose
           </div>
           
           <div className="setting-item">
-            <label htmlFor="summaryStyle">摘要风格</label>
+            <div className="setting-group-header" style={{marginBottom: '8px'}}>
+              <label htmlFor="summaryStyle">摘要风格</label>
+              <button 
+                className="primary-btn small-btn setting-add-btn"
+                onClick={() => setShowStyleForm(true)}
+                style={{fontSize: '12px', padding: '4px 8px'}}
+              >
+                <Plus size={14} />
+                自定义
+              </button>
+            </div>
             <select 
               id="summaryStyle"
               value={localSettings.summary.style}
               onChange={(e) => updateSummarySettings('style', e.target.value)}
             >
-              <option value="bullet">要点式</option>
-              <option value="paragraph">段落式</option>
-              <option value="qa">问答式</option>
-              <option value="xiaohongshu">小红书风格</option>
-              <option value="zhihu">知乎风格</option>
-              <option value="weibo">微博风格</option>
-              <option value="douyin">抖音风格</option>
-              <option value="academic">学术论文风格</option>
+              <optgroup label="内置风格">
+                <option value="bullet">要点式</option>
+                <option value="paragraph">段落式</option>
+                <option value="qa">问答式</option>
+                <option value="xiaohongshu">小红书风格</option>
+                <option value="zhihu">知乎风格</option>
+                <option value="weibo">微博风格</option>
+                <option value="douyin">抖音风格</option>
+                <option value="academic">学术论文风格</option>
+              </optgroup>
+              {localSettings.summary.customStyles && localSettings.summary.customStyles.length > 0 && (
+                <optgroup label="自定义风格">
+                  {localSettings.summary.customStyles.map(style => (
+                    <option key={style.id} value={style.id}>
+                      {style.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
+
+          {/* 自定义风格管理 */}
+          {localSettings.summary.customStyles && localSettings.summary.customStyles.length > 0 && (
+            <div className="setting-item">
+              <div className="setting-label">自定义风格列表</div>
+              <div className="custom-style-list">
+                {localSettings.summary.customStyles.map(style => (
+                  <div key={style.id} className="custom-style-item">
+                    <div className="style-info">
+                      <div className="style-name">{style.name}</div>
+                      <div className="style-description">{style.description}</div>
+                    </div>
+                    <div className="style-actions">
+                      <button 
+                        className="icon-btn small"
+                        onClick={() => handleEditStyle(style)}
+                        title="编辑"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button 
+                        className="icon-btn small danger"
+                        onClick={() => handleDeleteStyle(style.id)}
+                        title="删除"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 自定义风格表单 */}
+          {showStyleForm && (
+            <div className="config-form-overlay">
+              <div className="config-form">
+                <div className="form-header">
+                  <h6>{editingStyle ? '编辑自定义风格' : '添加自定义风格'}</h6>
+                  <button className="icon-btn" onClick={resetStyleForm}>
+                    <X size={16} />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleStyleSubmit}>
+                  <div className="form-row">
+                    <label htmlFor="styleName">风格名称</label>
+                    <input
+                      type="text"
+                      id="styleName"
+                      value={styleForm.name}
+                      onChange={(e) => setStyleForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="例如：新闻报道风格"
+                      required
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <label htmlFor="styleDescription">风格描述</label>
+                    <textarea
+                      id="styleDescription"
+                      value={styleForm.description}
+                      onChange={(e) => setStyleForm(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="详细描述摘要的风格要求，例如：使用新闻报道风格，客观陈述事实，采用倒金字塔结构，包含5W1H要素，语言简洁明了"
+                      rows={4}
+                      required
+                    />
+                    <small className="form-hint">
+                      描述越详细，AI生成的摘要越符合您的要求
+                    </small>
+                  </div>
+
+                  <div className="form-actions">
+                    <button type="submit" className="primary-btn">
+                      {editingStyle ? '更新风格' : '添加风格'}
+                    </button>
+                    <button type="button" className="secondary-btn" onClick={resetStyleForm}>
+                      取消
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
           
           <div className="setting-item">
             <label htmlFor="outputLanguage">输出语言</label>
